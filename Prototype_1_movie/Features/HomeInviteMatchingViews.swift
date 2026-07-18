@@ -92,100 +92,42 @@ struct HomeView: View {
 
 struct InviteView: View {
     let store: SyncTableStore
-    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 SectionHeader(
-                    eyebrow: "Sync Table • \(store.inviteCode)",
-                    title: store.bothConnected ? "Your table is connected" : "Waiting for the other person",
-                    subtitle: store.bothConnected ? "Both locations are online. Start when you’re ready." : "Share the code or link below. Ordering unlocks after both people join."
+                    eyebrow: store.bothConnected ? "Sync Table connected" : "Invite someone",
+                    title: store.bothConnected ? "Your table is connected" : "Your table is ready",
+                    subtitle: store.bothConnected
+                        ? "Both locations are online. Start when you’re ready."
+                        : "Share this code or invite link to bring someone to your table."
                 )
 
-                VStack(spacing: 18) {
-                    HStack {
-                        participantColumn(store.table.host, connected: store.table.hostConnected)
-                        ZStack {
-                            Capsule().fill(Brand.red.opacity(0.15)).frame(height: 3)
-                            Image(systemName: "link")
-                                .foregroundStyle(Brand.red)
-                                .padding(8)
-                                .background(.thinMaterial, in: Circle())
-                                .scaleEffect(pulse ? 1.08 : 0.95)
-                        }
-                        participantColumn(store.table.partner, connected: store.table.partnerConnected)
-                            .opacity(store.table.partnerConnected ? 1 : 0.45)
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    Divider()
-                    VStack(spacing: 7) {
-                        Text("ST  •  \(store.inviteCode)")
-                            .font(.system(.title2, design: .monospaced, weight: .bold))
-                        Text("Invite code expires in 14:32")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    ShareLink(item: "Join my Zomato Sync Table: zomato.example/sync/\(store.inviteCode)") {
-                        Label("Share Invite", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                }
-                .softCard()
-
                 if store.bothConnected {
-                    Label("Securely connected", systemImage: "checkmark.circle.fill")
-                        .font(.headline)
-                        .foregroundStyle(Brand.green)
-                    if store.table.memory != nil {
-                        Button("View shared table memory", systemImage: "photo.on.rectangle.angled") {
-                            store.openMemory()
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                    } else if !store.table.orders.isEmpty {
-                        Button("Resume live order", systemImage: "location.fill") {
-                            store.go(.tracking)
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                    } else {
-                        Button("Choose how to order", systemImage: "square.grid.2x2.fill") {
-                            store.go(.modeSelection)
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                    }
+                    ConnectedInviteView(store: store)
+                        .transition(
+                            reduceMotion
+                                ? .opacity
+                                : .move(edge: .bottom).combined(with: .opacity)
+                        )
                 } else {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Waiting for your tablemate…")
-                            .font(.subheadline.bold())
-                    }
-                    Button("Demo: connect other user") {
-                        store.joinPartner()
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    WaitingInviteView(
+                        inviteCode: store.inviteCode,
+                        createdAt: store.table.createdAt
+                    )
+                    .transition(.opacity)
                 }
             }
             .padding(20)
+            .animation(
+                reduceMotion
+                    ? .easeOut(duration: 0.2)
+                    : .spring(response: 0.55, dampingFraction: 0.82),
+                value: store.bothConnected
+            )
         }
-        .task {
-            withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { pulse = true }
-        }
-    }
-
-    private func participantColumn(_ participant: Participant, connected: Bool) -> some View {
-        VStack(spacing: 8) {
-            AvatarView(participant: participant, size: 58)
-            Text(participant.name).font(.headline)
-            Text(participant.city).font(.caption).foregroundStyle(.secondary)
-            if connected {
-                Text("Connected").font(.caption2.weight(.bold)).foregroundStyle(Brand.green)
-            }
-        }
-        .frame(width: 94)
     }
 }
 
@@ -215,7 +157,12 @@ struct MatchingView: View {
                     .padding(.vertical, 60)
                 } else {
                     ForEach(store.matches) { pair in
-                        MatchCard(pair: pair, selected: store.table.selectedPair?.id == pair.id) {
+                        MatchCard(
+                            pair: pair,
+                            selected: store.table.selectedPair?.id == pair.id,
+                            hostName: store.table.host.name,
+                            partnerName: store.table.partner.name
+                        ) {
                             store.select(pair)
                         }
                     }
@@ -239,6 +186,8 @@ struct MatchingView: View {
 struct MatchCard: View {
     let pair: RestaurantPair
     let selected: Bool
+    let hostName: String
+    let partnerName: String
     let action: () -> Void
 
     var body: some View {
@@ -256,9 +205,9 @@ struct MatchCard: View {
                         .foregroundStyle(.secondary)
                 }
                 HStack {
-                    restaurantName(pair.hostRestaurant, person: "Aniket")
+                    restaurantName(pair.hostRestaurant, person: hostName)
                     Image(systemName: "heart.fill").foregroundStyle(Brand.red)
-                    restaurantName(pair.partnerRestaurant, person: "Aisha")
+                    restaurantName(pair.partnerRestaurant, person: partnerName)
                 }
                 Text(pair.theme)
                     .font(.headline)

@@ -301,7 +301,7 @@ final class SyncTableStore {
         let next = menu[table.partnerCart.items.count % menu.count]
         add(next, to: &table.partnerCart)
         send(.cart(role: .partner, item: next, delta: 1))
-        announce("Aisha added \(next.name)", symbol: "plus.circle.fill")
+        announce("\(table.partner.name) added \(next.name)", symbol: "plus.circle.fill")
     }
 
     func seedCarts() {
@@ -401,7 +401,7 @@ final class SyncTableStore {
         guard table.orders.count == 2 else { return }
         table.orders[1].estimate.minutes += 4
         table.orders[1].estimate.window = "8:10–8:14 PM"
-        announce("Aisha’s estimate updated honestly", symbol: "clock.badge.exclamationmark")
+        announce("\(table.partner.name)’s estimate updated honestly", symbol: "clock.badge.exclamationmark")
         updateActivity()
         send(.setOrders(table.orders))
     }

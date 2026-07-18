@@ -35,7 +35,7 @@ struct SharedMenuView: View {
                             .padding(12)
                             .background(Brand.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
                     } else {
-                        Label("Aisha is viewing mains", systemImage: "eye.fill")
+                        Label("\(store.remoteParticipant.name) is viewing mains", systemImage: "eye.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -229,7 +229,7 @@ struct CartCard: View {
                     .tint(isReady ? Brand.green : Brand.red)
                     .frame(maxWidth: .infinity)
             } else if !isReady {
-                Label("Only Aisha can edit or confirm this cart", systemImage: "lock.fill")
+                Label("Only \(participant.name) can edit or confirm this cart", systemImage: "lock.fill")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -273,7 +273,7 @@ struct CheckoutView: View {
                     HStack {
                         Label("Aniket confirmed", systemImage: "checkmark.circle.fill")
                         Spacer()
-                        Label("Aisha confirmed", systemImage: "checkmark.circle.fill")
+                        Label("\(store.table.partner.name) confirmed", systemImage: "checkmark.circle.fill")
                     }
                     .font(.caption.bold())
                     .foregroundStyle(Brand.green)

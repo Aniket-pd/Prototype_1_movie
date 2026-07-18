@@ -16,7 +16,6 @@ struct SyncTableEntryView: View {
                     startDinnerCard
                     invitationCard
                     howSyncWorks
-                    connectedCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -293,61 +292,6 @@ struct SyncTableEntryView: View {
             }
         }
         .padding(.horizontal, 2)
-    }
-
-    private var connectedCard: some View {
-        HStack(spacing: 13) {
-            Image(systemName: connectionSymbol)
-                .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 46, height: 46)
-                .background(
-                    LinearGradient(
-                        colors: [SyncHomePalette.hotPink, SyncHomePalette.coral],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    in: Circle()
-                )
-                .shadow(color: SyncHomePalette.coral.opacity(0.25), radius: 10, y: 5)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(connectionTitle)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(SyncHomePalette.coral)
-                Text(connectionSubtitle)
-                    .font(.system(size: 13))
-                    .foregroundStyle(SyncHomePalette.ink.opacity(0.58))
-            }
-            Spacer()
-            HStack(spacing: -8) {
-                MiniParticipantAvatar(symbol: "person.crop.circle.fill", color: .orange)
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(SyncHomePalette.coral)
-                    .padding(.horizontal, 9)
-                MiniParticipantAvatar(symbol: "person.crop.circle.fill", color: SyncHomePalette.ink)
-            }
-        }
-        .padding(.horizontal, 15)
-        .frame(minHeight: 74)
-        .background(SyncHomePalette.blush.opacity(0.55), in: RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(SyncHomePalette.coral.opacity(0.12))
-        }
-    }
-
-    private var connectionSymbol: String {
-        store.connectionState == .synced ? "heart.fill" : "wifi.slash"
-    }
-
-    private var connectionTitle: String {
-        store.connectionState == .synced ? "Connected" : store.connectionState.title
-    }
-
-    private var connectionSubtitle: String {
-        store.connectionState == .synced ? "Waiting for Arjun to join..." : "We’ll reconnect automatically"
     }
 
     private func joinTable() {
