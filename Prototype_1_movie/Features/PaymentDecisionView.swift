@@ -76,21 +76,11 @@ struct PaymentDecisionView: View {
         Button {
             store.selectPayment(.onePays, payerID: participant.id)
         } label: {
-            HStack {
-                AvatarView(participant: participant)
-                VStack(alignment: .leading) {
-                    Text(participant.name).font(.headline)
-                    Text("Pays \(store.combinedFinalAmount.rupees)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: store.table.paymentDecision.payerID == participant.id
-                    ? "checkmark.circle.fill"
-                    : "circle")
-                    .foregroundStyle(store.table.paymentDecision.payerID == participant.id ? Brand.green : .secondary)
-            }
-            .contentShape(Rectangle())
+            ParticipantChoiceRow(
+                participant: participant,
+                detail: "Pays \(store.combinedFinalAmount.rupees)",
+                isSelected: store.table.paymentDecision.payerID == participant.id
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(participant.name) pays for everything")
@@ -189,8 +179,14 @@ private struct PaymentConfirmationsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Confirmations").font(.headline)
-            confirmationRow(store.table.host)
-            confirmationRow(store.table.partner)
+            ParticipantConfirmationRow(
+                participant: store.table.host,
+                isConfirmed: store.table.paymentDecision.isConfirmed(by: store.table.host)
+            )
+            ParticipantConfirmationRow(
+                participant: store.table.partner,
+                isConfirmed: store.table.paymentDecision.isConfirmed(by: store.table.partner)
+            )
             if let arrangement = store.table.paymentDecision.arrangement {
                 Label(arrangement.title, systemImage: "creditcard.fill")
                     .font(.subheadline.bold())
@@ -199,17 +195,5 @@ private struct PaymentConfirmationsCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .softCard()
-    }
-
-    private func confirmationRow(_ participant: Participant) -> some View {
-        let confirmed = store.table.paymentDecision.isConfirmed(by: participant)
-        return HStack {
-            AvatarView(participant: participant, size: 36)
-            Text(participant.name)
-            Spacer()
-            Label(confirmed ? "Confirmed" : "Waiting", systemImage: confirmed ? "checkmark.circle.fill" : "clock")
-                .font(.subheadline.bold())
-                .foregroundStyle(confirmed ? Brand.green : .secondary)
-        }
     }
 }

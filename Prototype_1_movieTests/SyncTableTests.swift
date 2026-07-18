@@ -109,16 +109,81 @@ struct SyncTableTests {
         await host.createTable()
         await partner.joinTable(code: host.inviteCode)
 
-        host.go(.modeSelection)
+        host.go(.matching)
         partner.go(.invite)
-        host.selectOrderingMode(.blend)
-        try? await Task.sleep(for: .milliseconds(600))
+        await host.findMatches()
+        try? await Task.sleep(for: .milliseconds(1_200))
 
-        #expect(host.stage == .modeSelection)
+        #expect(host.stage == .matching)
         #expect(partner.stage == .invite)
-        #expect(partner.table.orderingMode == .blend)
+        #expect(!host.matches.isEmpty)
         #expect(host.bothConnected)
         #expect(partner.bothConnected)
+    }
+
+    @Test("On-device demo supports the complete shared decision flow")
+    @MainActor
+    func onDeviceDemoFlow() async {
+        let store = SyncTableStore(backend: nil, role: .host, offline: true)
+
+        await store.connectToDemoBackend()
+        await store.createTable()
+        #expect(store.connectionState == .local)
+        #expect(store.stage == .invite)
+        #expect(store.localConnected)
+
+        store.joinPartner()
+        #expect(store.bothConnected)
+
+        store.table.selectedPair = RestaurantPair(
+            hostRestaurant: DemoData.catalogue[0],
+            partnerRestaurant: DemoData.catalogue[1],
+            score: .init(total: 91, menuSimilarity: 89, predictedDifference: 3, priceCompatible: true, prepCompatible: true),
+            theme: "North Indian Grill Night"
+        )
+        store.seedCarts()
+        store.setLocalReady()
+        #expect(store.table.hostReady)
+        #expect(store.table.partnerReady)
+
+        store.selectPayment(.splitEqually)
+        store.confirmPaymentDecision()
+        #expect(store.bothPaymentConfirmed)
+
+        await store.authorizeAndSubmit()
+        #expect(store.table.orders.count == 2)
+        #expect(store.stage == .tracking)
+        #expect(store.table.orders[0].total == store.hostFinalAmount)
+        #expect(store.table.orders[1].total == store.partnerFinalAmount)
+    }
+
+    @Test("Back navigation follows visited screens")
+    @MainActor
+    func navigationHistory() {
+        let store = SyncTableStore(backend: nil, role: .host)
+
+        store.go(.invite)
+        store.go(.matching)
+        #expect(store.path == [.invite, .matching])
+        store.goBack()
+        #expect(store.stage == .invite)
+        store.goBack()
+        #expect(store.stage == .home)
+        #expect(store.path.isEmpty)
+    }
+
+    @Test("System pop gestures update the current stage")
+    @MainActor
+    func systemPopNavigation() {
+        let store = SyncTableStore(backend: nil, role: .host)
+        store.go(.invite)
+        store.go(.matching)
+
+        store.path.removeLast()
+        #expect(store.stage == .invite)
+
+        store.path.removeLast()
+        #expect(store.stage == .home)
     }
 
     private func sampleTable() -> SyncTable {
@@ -165,8 +230,6 @@ private final class InMemoryDemoBackend: DemoBackendService, @unchecked Sendable
                 else { snapshot.table.partnerConnected = true }
                 snapshot.partnerJoined = snapshot.table.partnerConnected
             }
-        case .orderingMode(let mode):
-            update(tableID) { $0.table.orderingMode = mode }
         case .payment(let payment):
             update(tableID) { $0.table.paymentDecision = payment }
         case .confirmPayment(let participantID):

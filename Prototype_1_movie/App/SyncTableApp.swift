@@ -8,7 +8,6 @@ struct SyncTableApp: App {
         WindowGroup {
             ContentView(store: store)
                 .tint(Brand.red)
-                .preferredColorScheme(nil)
                 .task { await store.connectToDemoBackend() }
         }
     }

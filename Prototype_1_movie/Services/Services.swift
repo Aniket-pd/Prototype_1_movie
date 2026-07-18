@@ -1,6 +1,6 @@
 import Foundation
 
-protocol RestaurantCatalogueService {
+protocol RestaurantCatalogueService: Sendable {
     func restaurants(in city: String) async -> [Restaurant]
 }
 
@@ -10,7 +10,7 @@ struct MockRestaurantCatalogueService: RestaurantCatalogueService {
     }
 }
 
-protocol RestaurantMatchingService {
+protocol RestaurantMatchingService: Sendable {
     func matches(host: [Restaurant], partner: [Restaurant]) async -> [RestaurantPair]
 }
 
@@ -55,7 +55,7 @@ struct DeterministicRestaurantMatchingService: RestaurantMatchingService {
     }
 }
 
-protocol LinkedOrderService {
+protocol LinkedOrderService: Sendable {
     func submit(table: SyncTable) async throws -> [LinkedOrder]
 }
 
@@ -67,13 +67,17 @@ struct MockLinkedOrderService: LinkedOrderService {
         guard !table.hostCart.items.isEmpty, !table.partnerCart.items.isEmpty else { throw OrderError.emptyCart }
         guard let pair = table.selectedPair else { throw OrderError.unavailable }
         return [
-            .init(id: "ZST-MUM-4821", ownerID: table.host.id, restaurantName: pair.hostRestaurant.name, address: table.host.address, total: table.hostCart.total, status: .authorized, estimate: .init(minutes: 42, window: "8:04–8:08 PM"), paymentAuthorized: true),
-            .init(id: "ZST-BLR-7390", ownerID: table.partner.id, restaurantName: pair.partnerRestaurant.name, address: table.partner.address, total: table.partnerCart.total, status: .authorized, estimate: .init(minutes: 45, window: "8:06–8:10 PM"), paymentAuthorized: true)
+            .init(id: "ZST-MUM-4821", ownerID: table.host.id, restaurantName: pair.hostRestaurant.name, address: table.host.address, total: finalAmount(for: table.hostCart, delivery: 39), status: .authorized, estimate: .init(minutes: 42, window: "8:04–8:08 PM"), paymentAuthorized: true),
+            .init(id: "ZST-BLR-7390", ownerID: table.partner.id, restaurantName: pair.partnerRestaurant.name, address: table.partner.address, total: finalAmount(for: table.partnerCart, delivery: 35), status: .authorized, estimate: .init(minutes: 45, window: "8:06–8:10 PM"), paymentAuthorized: true)
         ]
+    }
+
+    private func finalAmount(for cart: Cart, delivery: Int) -> Int {
+        cart.total + delivery + Int((Double(cart.total) * 0.05).rounded())
     }
 }
 
-protocol MenuTwinService {
+protocol MenuTwinService: Sendable {
     func profile(for item: MenuItem, counterpart: MenuItem) async -> MenuTwinProfile
 }
 

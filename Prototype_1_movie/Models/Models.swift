@@ -1,37 +1,8 @@
 import Foundation
 import CoreLocation
 
-enum AppStage: Int, CaseIterable, Codable {
-    case home, invite, modeSelection, matching, menu, carts, payment, checkout, tracking, firstBite, dining, memory
-}
-
-enum OrderingMode: String, CaseIterable, Codable, Identifiable {
-    case blend
-    case sameChain
-    case differentRestaurants
-
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .blend: "Blend"
-        case .sameChain: "Order from the same chain"
-        case .differentRestaurants: "Order from different restaurants"
-        }
-    }
-    var subtitle: String {
-        switch self {
-        case .blend: "Combine dish recommendations available near both of you."
-        case .sameChain: "Order from the nearest branch of one shared chain."
-        case .differentRestaurants: "Choose independently while keeping both orders connected."
-        }
-    }
-    var symbol: String {
-        switch self {
-        case .blend: "square.stack.3d.up.fill"
-        case .sameChain: "building.2.fill"
-        case .differentRestaurants: "arrow.left.arrow.right"
-        }
-    }
+enum AppStage: Int, CaseIterable, Codable, Hashable {
+    case home, invite, matching, menu, carts, payment, checkout, tracking, firstBite, dining, memory
 }
 
 enum PaymentArrangement: String, CaseIterable, Codable, Identifiable {
@@ -243,7 +214,6 @@ struct SyncTable: Identifiable, Codable {
     var orders: [LinkedOrder]
     var hostConnected: Bool = false
     var partnerConnected: Bool = false
-    var orderingMode: OrderingMode?
     var paymentDecision: SharedPaymentDecision = .init()
     var memory: SyncMemory?
 }

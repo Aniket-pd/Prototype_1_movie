@@ -7,6 +7,7 @@ enum DemoUserRole: String, Codable {
 
 enum BackendConnectionState: Equatable {
     case loading
+    case local
     case disconnected
     case error(String)
     case synced
@@ -14,9 +15,19 @@ enum BackendConnectionState: Equatable {
     var title: String {
         switch self {
         case .loading: "Connecting"
+        case .local: "On-device demo"
         case .disconnected: "Disconnected"
         case .error: "Sync error"
         case .synced: "Synced"
+        }
+    }
+
+    var isHealthy: Bool {
+        switch self {
+        case .local, .synced:
+            true
+        case .loading, .disconnected, .error:
+            false
         }
     }
 }
@@ -37,7 +48,6 @@ enum DemoBackendAction: Encodable {
     case setStage(AppStage)
     case join(DemoUserRole)
     case selectPair(RestaurantPair)
-    case orderingMode(OrderingMode)
     case cart(role: DemoUserRole, item: MenuItem, delta: Int)
     case ready(role: DemoUserRole, value: Bool)
     case payment(SharedPaymentDecision)
@@ -68,9 +78,6 @@ enum DemoBackendAction: Encodable {
         case .selectPair(let pair):
             try container.encode("selectPair", forKey: .type)
             try container.encode(pair, forKey: .pair)
-        case .orderingMode(let mode):
-            try container.encode("orderingMode", forKey: .type)
-            try container.encode(mode, forKey: .mode)
         case .cart(let role, let item, let delta):
             try container.encode("cart", forKey: .type)
             try container.encode(role, forKey: .role)

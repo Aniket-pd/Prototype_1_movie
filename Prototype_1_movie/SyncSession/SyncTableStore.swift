@@ -1,20 +1,20 @@
 import Foundation
 import Observation
-import SwiftUI
 
 @MainActor
 @Observable
 final class SyncTableStore {
-    var stage: AppStage = .home
     var path: [AppStage] = []
     var table: SyncTable
     var matches: [RestaurantPair] = []
     var isMatching = false
     var events: [PartnerPresenceEvent] = []
+    var transientEvent: PartnerPresenceEvent?
     var selectedCategory = "Mains"
     var showDeveloperMenu = false
     var isSubmitting = false
-    var errorMessage: String?
+    var errorMessage = ""
+    var isShowingError = false
     var countdown: Int?
     var hostReadyToEat = false
     var partnerReadyToEat = false
@@ -30,20 +30,27 @@ final class SyncTableStore {
     private var simulationTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
     private var syncTask: Task<Void, Never>?
+    private var actionTask: Task<Void, Never>?
+    private var eventDismissTask: Task<Void, Never>?
+    private var displayedEventID: UUID?
     private var appliedRevision = -1
+    private var isLocalSession = false
 
     init(
         catalogue: RestaurantCatalogueService? = nil,
         matcher: RestaurantMatchingService? = nil,
         orderService: LinkedOrderService? = nil,
         backend: DemoBackendService? = nil,
-        role: DemoUserRole? = nil
+        role: DemoUserRole? = nil,
+        offline: Bool = false
     ) {
         self.catalogue = catalogue ?? MockRestaurantCatalogueService()
         self.matcher = matcher ?? DeterministicRestaurantMatchingService()
         self.orderService = orderService ?? MockLinkedOrderService()
         self.role = role ?? DemoRuntimeConfiguration.role
-        if let backend {
+        if offline {
+            self.backend = nil
+        } else if let backend {
             self.backend = backend
         } else if let url = DemoRuntimeConfiguration.backendURL {
             self.backend = HTTPDemoBackendService(baseURL: url)
@@ -54,6 +61,7 @@ final class SyncTableStore {
     }
 
     var backendConnected: Bool { connectionState == .synced }
+    var stage: AppStage { path.last ?? .home }
     var partnerJoined: Bool { bothConnected }
     var bothConnected: Bool { table.hostConnected && table.partnerConnected }
     var hasActiveTable: Bool { !table.id.isEmpty }
@@ -100,7 +108,7 @@ final class SyncTableStore {
     func connectToDemoBackend() async {
         guard syncTask == nil else { return }
         guard let backend else {
-            connectionState = .disconnected
+            connectionState = .local
             return
         }
         connectionState = .loading
@@ -110,7 +118,7 @@ final class SyncTableStore {
                 table = remote.table
                 apply(remote)
                 connectionState = .synced
-                stage = .invite
+                path = [.invite]
             } else {
                 _ = try await backend.snapshot(tableID: "__connection_probe__")
                 connectionState = .synced
@@ -122,10 +130,14 @@ final class SyncTableStore {
 
         syncTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .seconds(1))
                 guard let self, let backend = self.backend else { return }
+                if self.isLocalSession {
+                    self.connectionState = .local
+                    continue
+                }
                 guard self.hasActiveTable else {
-                    try? await Task.sleep(for: .milliseconds(3_750))
+                    try? await Task.sleep(for: .seconds(3))
                     do {
                         _ = try await backend.snapshot(tableID: "__connection_probe__")
                         self.connectionState = .synced
@@ -149,8 +161,12 @@ final class SyncTableStore {
     }
 
     func createTable() async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        defer { isSubmitting = false }
+
         guard let backend else {
-            errorMessage = "The demo backend is unavailable."
+            startLocalTable(id: "ST-\(Self.makeInviteCode())", bothConnected: false)
             return
         }
         connectionState = .loading
@@ -167,31 +183,37 @@ final class SyncTableStore {
             connectionState = .synced
             go(.invite)
         } catch {
-            connectionState = .error("Could not create table")
-            errorMessage = "Could not create a Sync Table. Check the demo server and try again."
+            startLocalTable(id: table.id, bothConnected: false)
+            announce("Continuing in an on-device demo", symbol: "iphone")
         }
     }
 
     func joinTable(code: String) async {
-        guard let backend else {
-            errorMessage = "The demo backend is unavailable."
-            return
-        }
         let codeOrLink = URL(string: code)?.lastPathComponent ?? code
         let normalized = codeOrLink
             .uppercased()
             .replacing("ST-", with: "")
             .filter { $0.isLetter || $0.isNumber }
         guard normalized.count == 4 else {
-            errorMessage = "Enter the four-character invite code."
+            showError("Enter the four-character invite code.")
             return
         }
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        defer { isSubmitting = false }
+
+        guard let backend, connectionState == .synced else {
+            startLocalTable(id: "ST-\(normalized)", bothConnected: true)
+            announce("\(localParticipant.name) joined the on-device demo", symbol: "person.2.fill")
+            return
+        }
+
         connectionState = .loading
         let tableID = "ST-\(normalized)"
         do {
             guard let remote = try await backend.snapshot(tableID: tableID) else {
                 connectionState = .synced
-                errorMessage = "We couldn’t find that Sync Table."
+                showError("We couldn’t find that Sync Table.")
                 return
             }
             table = remote.table
@@ -205,54 +227,66 @@ final class SyncTableStore {
             go(.invite)
         } catch {
             connectionState = .error("Could not join table")
-            errorMessage = "Could not join this Sync Table. Check the connection and try again."
+            showError("Could not join this Sync Table. Check the connection and try again.")
         }
     }
 
     func leaveTable() {
         simulationTask?.cancel()
         countdownTask?.cancel()
+        actionTask?.cancel()
+        eventDismissTask?.cancel()
         clearSavedSession()
+        isLocalSession = false
         table = Self.emptyTable(id: "")
         appliedRevision = -1
         events = []
+        transientEvent = nil
         matches = []
-        stage = .home
+        path.removeAll()
     }
 
     func go(_ destination: AppStage) {
-        withAnimation(.snappy) { stage = destination }
+        guard destination != stage else { return }
+        if destination == .home {
+            path.removeAll()
+        } else {
+            path.append(destination)
+        }
+    }
+
+    func goBack() {
+        if path.isEmpty {
+            leaveTable()
+        } else {
+            path.removeLast()
+        }
     }
 
     func joinPartner() {
         let otherRole: DemoUserRole = role == .host ? .partner : .host
+        if otherRole == .host {
+            table.hostConnected = true
+        } else {
+            table.partnerConnected = true
+        }
         send(.join(otherRole))
         announce("\(remoteParticipant.name) joined from \(remoteParticipant.city)", symbol: "person.2.fill")
     }
 
-    func selectOrderingMode(_ mode: OrderingMode) {
-        table.orderingMode = mode
-        table.selectedPair = nil
-        table.hostCart.items = []
-        table.partnerCart.items = []
-        table.paymentDecision = .init()
-        send(.orderingMode(mode))
-    }
-
     func findMatches() async {
+        guard !isMatching else { return }
         isMatching = true
         async let hostRestaurants = catalogue.restaurants(in: table.host.city)
         async let partnerRestaurants = catalogue.restaurants(in: table.partner.city)
         let result = await matcher.matches(host: hostRestaurants, partner: partnerRestaurants)
-        try? await Task.sleep(for: .milliseconds(700))
-        switch table.orderingMode {
-        case .sameChain:
-            matches = result.filter { $0.hostRestaurant.name == $0.partnerRestaurant.name }
-        case .differentRestaurants:
-            matches = result.filter { $0.hostRestaurant.name != $0.partnerRestaurant.name }
-        case .blend, nil:
-            matches = Array(result.prefix(3))
+        do {
+            try await Task.sleep(for: .milliseconds(700))
+        } catch {
+            isMatching = false
+            return
         }
+        matches = Array(result.prefix(3))
         if matches.isEmpty { matches = Array(result.prefix(3)) }
         isMatching = false
     }
@@ -279,7 +313,6 @@ final class SyncTableStore {
         } else {
             cart.items.append(.init(menuItem: item, quantity: 1))
         }
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
     }
 
     func removeHostItem(_ item: MenuItem) { removeLocalItem(item) }
@@ -318,9 +351,15 @@ final class SyncTableStore {
     func setLocalReady() {
         let value = !localReady
         if role == .host { table.hostReady = value } else { table.partnerReady = value }
+        if connectionState == .local {
+            if role == .host {
+                table.partnerReady = value
+            } else {
+                table.hostReady = value
+            }
+        }
         send(.ready(role: role, value: value))
         announce("\(localParticipant.name) is \(value ? "ready" : "still choosing")", symbol: value ? "checkmark.circle.fill" : "clock")
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     func setBothReady() {
@@ -342,18 +381,22 @@ final class SyncTableStore {
 
     func confirmPaymentDecision() {
         table.paymentDecision.confirmedBy.insert(localParticipant.id)
+        if connectionState == .local {
+            table.paymentDecision.confirmedBy.insert(remoteParticipant.id)
+        }
         send(.confirmPayment(localParticipant.id))
         announce("\(localParticipant.name) confirmed \(paymentSummary.lowercased())", symbol: "checkmark.shield.fill")
     }
 
     func authorizeAndSubmit() async {
+        guard !isSubmitting else { return }
         guard bothPaymentConfirmed else {
-            errorMessage = "Both people must confirm the payment arrangement."
+            showError("Both people must confirm the payment arrangement.")
             return
         }
         isSubmitting = true
         do {
-            try? await Task.sleep(for: .milliseconds(700))
+            try await Task.sleep(for: .milliseconds(700))
             table.orders = try await orderService.submit(table: table)
             send(.setOrders(table.orders))
             isSubmitting = false
@@ -361,7 +404,7 @@ final class SyncTableStore {
             if role == .host { startAutomaticDeliverySimulation() }
             await startLiveActivityIfPossible()
         } catch {
-            errorMessage = "Both carts need an item and both people must be ready."
+            showError("Both carts need an item and both people must be ready.")
             isSubmitting = false
         }
     }
@@ -429,6 +472,10 @@ final class SyncTableStore {
 
     func beginFirstBite() {
         if role == .host { hostReadyToEat = true } else { partnerReadyToEat = true }
+        if connectionState == .local {
+            hostReadyToEat = true
+            partnerReadyToEat = true
+        }
         send(.readyToEat(role: role, value: true))
         maybeStartCountdown()
     }
@@ -438,7 +485,6 @@ final class SyncTableStore {
     func sendReaction(_ emoji: String) {
         reaction = emoji
         announce("\(localParticipant.name) reacted \(emoji)", symbol: "heart.fill")
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
     }
 
     func finishMeal() {
@@ -452,7 +498,7 @@ final class SyncTableStore {
             date: .now,
             cities: "\(table.host.city) • \(table.partner.city)",
             dishes: "\(hostDish) + \(partnerDish)",
-            theme: table.orderingMode?.title ?? "Sync Table",
+            theme: "Sync Table",
             restaurantInformation: restaurants,
             paymentSummary: paymentSummary
         )
@@ -463,7 +509,7 @@ final class SyncTableStore {
 
     func openMemory() {
         if table.memory == nil {
-            errorMessage = "The shared memory is still syncing."
+            showError("The shared memory is still syncing.")
         } else {
             go(.memory)
         }
@@ -483,24 +529,26 @@ final class SyncTableStore {
         partnerReadyToEat = false
         appliedRevision = -1
         send(.reset(makeSnapshot()))
-        go(.modeSelection)
+        path = [.matching]
     }
 
     func reset() { leaveTable() }
 
     private func maybeStartCountdown() {
-        guard role == .host, hostReadyToEat, partnerReadyToEat, countdown == nil, countdownTask == nil else { return }
+        guard (role == .host || connectionState == .local),
+              hostReadyToEat,
+              partnerReadyToEat,
+              countdown == nil,
+              countdownTask == nil else { return }
         countdownTask = Task { [weak self] in
             guard let self else { return }
             for value in stride(from: 3, through: 1, by: -1) {
                 self.countdown = value
                 self.send(.countdown(value))
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                 try? await Task.sleep(for: .seconds(1))
             }
             self.countdown = 0
             self.send(.countdown(0))
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
             self.countdownTask = nil
         }
     }
@@ -508,13 +556,20 @@ final class SyncTableStore {
     private func announce(_ text: String, symbol: String) {
         let event = PartnerPresenceEvent(text: text, symbol: symbol, date: .now)
         events.insert(event, at: 0)
+        if events.count > 20 {
+            events.removeSubrange(20...)
+        }
+        showTransientEvent(event)
         send(.event(event))
     }
 
     private func send(_ action: DemoBackendAction) {
-        guard let backend, hasActiveTable else { return }
+        guard let backend, hasActiveTable, !isLocalSession else { return }
         let tableID = table.id
-        Task { [weak self] in
+        let previousTask = actionTask
+        actionTask = Task { [weak self] in
+            await previousTask?.value
+            guard !Task.isCancelled else { return }
             do {
                 let remote = try await backend.perform(action, tableID: tableID)
                 self?.connectionState = .synced
@@ -545,14 +600,49 @@ final class SyncTableStore {
     }
 
     private func applyContents(_ snapshot: DemoBackendSnapshot) {
-        withAnimation(.snappy) {
-            table = snapshot.table
-            events = snapshot.events
-            hostReadyToEat = snapshot.hostReadyToEat
-            partnerReadyToEat = snapshot.partnerReadyToEat
-            countdown = snapshot.countdown
+        table = snapshot.table
+        events = snapshot.events
+        hostReadyToEat = snapshot.hostReadyToEat
+        partnerReadyToEat = snapshot.partnerReadyToEat
+        countdown = snapshot.countdown
+        if let latestEvent = snapshot.events.first,
+           latestEvent.id != displayedEventID,
+           Date.now.timeIntervalSince(latestEvent.date) < 8 {
+            showTransientEvent(latestEvent)
         }
         maybeStartCountdown()
+    }
+
+    private func showTransientEvent(_ event: PartnerPresenceEvent) {
+        displayedEventID = event.id
+        transientEvent = event
+        eventDismissTask?.cancel()
+        eventDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled, self?.transientEvent?.id == event.id else { return }
+            self?.transientEvent = nil
+        }
+    }
+
+    private func showError(_ message: String) {
+        errorMessage = message
+        isShowingError = true
+    }
+
+    private func startLocalTable(id: String, bothConnected: Bool) {
+        isLocalSession = true
+        table = Self.emptyTable(id: id)
+        if bothConnected {
+            table.hostConnected = true
+            table.partnerConnected = true
+        } else if role == .host {
+            table.hostConnected = true
+        } else {
+            table.partnerConnected = true
+        }
+        connectionState = .local
+        appliedRevision = -1
+        path = [.invite]
     }
 
     private var sessionDefaultsKey: String { "sync-table-session-\(role.rawValue)" }
@@ -583,7 +673,6 @@ final class SyncTableStore {
             orders: [],
             hostConnected: false,
             partnerConnected: false,
-            orderingMode: nil,
             paymentDecision: .init(),
             memory: nil
         )

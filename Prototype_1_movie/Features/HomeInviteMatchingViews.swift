@@ -1,95 +1,5 @@
 import SwiftUI
 
-struct HomeView: View {
-    let store: SyncTableStore
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("zomato")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
-                            .foregroundStyle(Brand.red)
-                        Text("Good evening, \(store.localParticipant.name)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    AvatarView(participant: store.localParticipant)
-                }
-
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Eat together,\nwherever you are")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                            Text("Link two local orders into one shared dinner.")
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.82))
-                        }
-                        Spacer()
-                        Image(systemName: "fork.knife.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(Brand.peach)
-                    }
-                    Button {
-                        store.go(.invite)
-                    } label: {
-                        Label(store.role == .host ? "Create Sync Table" : "Join Sync Table", systemImage: "person.2.badge.plus")
-                            .font(.headline)
-                            .foregroundStyle(Brand.redDark)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 15))
-                    }
-                    .accessibilityHint("Starts a new shared meal")
-                }
-                .padding(22)
-                .background(Brand.red, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .shadow(color: Brand.red.opacity(0.25), radius: 20, y: 10)
-
-                Text("Made for tonight")
-                    .font(.title2.bold())
-                HStack(spacing: 14) {
-                    discoveryCard(symbol: "takeoutbag.and.cup.and.straw.fill", title: "North Indian", subtitle: "Warm, smoky, shared")
-                    discoveryCard(symbol: "birthday.cake.fill", title: "Dessert run", subtitle: "A sweet little plan")
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Your last table", systemImage: "clock.arrow.circlepath")
-                        .font(.headline)
-                    Text("Mumbai ↔ Bengaluru")
-                        .font(.title3.bold())
-                    Text("Paneer night • 2 weeks ago")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .softCard()
-
-                Text("Two locations. Two carts. One shared meal.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 4)
-            }
-            .padding(20)
-        }
-        .navigationBarHidden(true)
-    }
-
-    private func discoveryCard(symbol: String, title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: symbol).font(.title).foregroundStyle(Brand.red)
-            Text(title).font(.headline)
-            Text(subtitle).font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .softCard()
-    }
-}
-
 struct InviteView: View {
     let store: SyncTableStore
 
@@ -97,7 +7,7 @@ struct InviteView: View {
         ZStack {
             SyncFlowBackground()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 22) {
                     inviteHero
                     participantsCard
@@ -107,6 +17,7 @@ struct InviteView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 32)
             }
+            .scrollIndicators(.hidden)
         }
         .toolbarBackground(.hidden, for: .navigationBar)
     }
@@ -268,7 +179,7 @@ struct InviteView: View {
                 } else if !store.table.orders.isEmpty {
                     store.go(.tracking)
                 } else {
-                    store.go(.modeSelection)
+                    store.go(.matching)
                 }
             } label: {
                 HStack(spacing: 14) {
@@ -277,7 +188,7 @@ struct InviteView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Your tablemate is here")
                             .font(.system(size: 16, weight: .bold))
-                        Text("Choose how tonight should work.")
+                        Text("Find restaurants and menus together.")
                             .font(.system(size: 13))
                             .foregroundStyle(.white.opacity(0.82))
                     }
@@ -323,7 +234,7 @@ struct MatchingView: View {
         ZStack {
             SyncFlowBackground()
 
-            ScrollView(showsIndicators: false) {
+            ScrollView {
                 VStack(spacing: 20) {
                     matchHero
 
@@ -351,33 +262,36 @@ struct MatchingView: View {
                             }
                         }
 
-                        Button {
-                            store.go(.menu)
-                        } label: {
-                            HStack {
-                                Image(systemName: "fork.knife")
-                                Text("Browse shared menu")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .padding(.horizontal, 22)
-                        }
-                        .buttonStyle(SyncFlowPrimaryButtonStyle())
-                        .disabled(store.table.selectedPair == nil)
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
-                .padding(.bottom, 34)
+                .padding(.bottom, store.table.selectedPair == nil ? 34 : 96)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if store.table.selectedPair != nil {
+                Button {
+                    store.go(.menu)
+                } label: {
+                    Label("Browse shared menu", systemImage: "fork.knife")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(SyncFlowPalette.rose)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.snappy, value: store.table.selectedPair?.id)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             if store.matches.isEmpty {
                 await store.findMatches()
-            }
-            if store.table.selectedPair == nil, let first = store.matches.first {
-                store.select(first)
             }
         }
     }
@@ -388,7 +302,7 @@ struct MatchingView: View {
 
             ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text((store.table.orderingMode?.title ?? "Restaurant match").uppercased())
+                    Text("Restaurant match".uppercased())
                         .font(.system(size: 11.5, weight: .bold))
                         .tracking(1.2)
                         .foregroundStyle(SyncFlowPalette.rose)

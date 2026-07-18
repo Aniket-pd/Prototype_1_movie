@@ -111,8 +111,8 @@ struct SyncTableActivityAttributes: ActivityAttributes {
 }
 
 struct ReadyToEatIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "I’m Ready to Eat"
-    static var description = IntentDescription("Marks your side of the Sync Table ready for the first bite.")
+    static let title: LocalizedStringResource = "I’m Ready to Eat"
+    static let description = IntentDescription("Marks your side of the Sync Table ready for the first bite.")
 
     func perform() async throws -> some IntentResult {
         .result()

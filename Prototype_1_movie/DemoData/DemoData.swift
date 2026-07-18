@@ -2,13 +2,13 @@ import Foundation
 
 enum DemoData {
     static let aniket = Participant(
-        id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+        id: stableID("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"),
         name: "Aniket", initials: "AP", city: "Mumbai",
         address: .init(label: "Home", line: "Bandra West, Mumbai", city: "Mumbai", latitude: 19.0607, longitude: 72.8362),
         isHost: true
     )
     static let aisha = Participant(
-        id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+        id: stableID("BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"),
         name: "Aisha", initials: "AK", city: "Bengaluru",
         address: .init(label: "Home", line: "Indiranagar, Bengaluru", city: "Bengaluru", latitude: 12.9784, longitude: 77.6408),
         isHost: false
@@ -47,4 +47,11 @@ enum DemoData {
         .init(id: UUID(), name: "Zomato Kitchen", city: "Mumbai", cuisine: "Multi-cuisine", rating: 4.6, priceLevel: 2, preparationMinutes: 21, deliveryMinutes: 18, coordinate: .init(latitude: 19.0615, longitude: 72.8401), menu: mumbaiMenu + asianMumbai),
         .init(id: UUID(), name: "Zomato Kitchen", city: "Bengaluru", cuisine: "Multi-cuisine", rating: 4.6, priceLevel: 2, preparationMinutes: 22, deliveryMinutes: 19, coordinate: .init(latitude: 12.9801, longitude: 77.6382), menu: bengaluruMenu + asianBengaluru)
     ]
+
+    private static func stableID(_ value: String) -> UUID {
+        guard let id = UUID(uuidString: value) else {
+            preconditionFailure("Invalid demo UUID: \(value)")
+        }
+        return id
+    }
 }

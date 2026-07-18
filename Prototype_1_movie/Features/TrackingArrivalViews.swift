@@ -16,13 +16,13 @@ struct TrackingView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("SHARED ARRIVAL WINDOW").font(.caption2.bold()).tracking(1)
+                            Text("SHARED ARRIVAL WINDOW").font(.caption.bold()).tracking(1)
                             Text("8:06–8:12 PM").font(.title.bold())
                         }
                         Spacer()
                         VStack(alignment: .trailing) {
                             Text("Δ \(store.predictedDifference) min").font(.title3.bold())
-                            Text("current prediction").font(.caption2).foregroundStyle(.secondary)
+                            Text("current prediction").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     Text("Expected within \(store.predictedDifference) minutes of each other")
@@ -38,7 +38,7 @@ struct TrackingView: View {
 
                 courierMap
                     .frame(height: 250)
-                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .clipShape(.rect(cornerRadius: 22))
                     .overlay(alignment: .topLeading) {
                         Text("Two local courier journeys")
                             .font(.caption.bold())
@@ -55,8 +55,10 @@ struct TrackingView: View {
                     LiveActivityPreview(store: store)
                 }
 
+                #if DEBUG
                 Button("Demo: Advance delivery") { store.advanceSimulation() }
                     .buttonStyle(.bordered)
+                #endif
 
                 if store.table.orders.count == 2,
                    store.table.orders.allSatisfy({ $0.status == .delivered }) {
@@ -88,7 +90,7 @@ struct TrackingView: View {
             AvatarView(participant: participant)
             VStack(alignment: .leading, spacing: 5) {
                 Text(order.restaurantName).font(.headline)
-                Text(order.id).font(.caption2.monospaced()).foregroundStyle(.secondary)
+                Text(order.id).font(.caption.monospaced()).foregroundStyle(.secondary)
                 Label(order.status.title, systemImage: order.status.symbol)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Brand.red)
             }
@@ -175,7 +177,7 @@ struct LiveActivityPreview: View {
     private func activityPerson(_ person: Participant, order: LinkedOrder?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(person.name).font(.caption.bold())
-            Text(order?.status.title ?? "Linked").font(.caption2).foregroundStyle(.white.opacity(0.7))
+            Text(order?.status.title ?? "Linked").font(.caption).foregroundStyle(.white.opacity(0.7))
             ProgressView(value: Double(order?.status.rawValue ?? 0), total: 6).tint(person.isHost ? Brand.red : .orange)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,6 +221,7 @@ struct FirstBiteView: View {
             .disabled(store.localReadyToEat && store.countdown != 0)
         }
         .padding(24)
+        .sensoryFeedback(.impact(weight: .heavy), trigger: store.countdown)
     }
 
     private var firstBiteButtonTitle: String {
@@ -286,6 +289,7 @@ struct DiningView: View {
                 .buttonStyle(PrimaryButtonStyle())
         }
         .padding(24)
+        .sensoryFeedback(.selection, trigger: selectedReaction)
     }
 }
 
@@ -363,7 +367,7 @@ private struct MemoryUnavailableState: View {
                 description: Text("Reconnect to restore the latest shared table memory.")
             )
             .softCard()
-        case .synced:
+        case .local, .synced:
             ContentUnavailableView(
                 "Memory not saved yet",
                 systemImage: "fork.knife.circle",

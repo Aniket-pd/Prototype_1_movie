@@ -13,49 +13,39 @@ struct SharedMenuView: View {
         ZStack {
             SyncFlowBackground()
 
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 15) {
-                    menuHeader
+            ScrollView {
+                LazyVStack(spacing: 14) {
+                    menuContext
 
-                    Picker("Whose local menu", selection: $viewingOther) {
-                        Text("Your menu • \(store.localParticipant.city)").tag(false)
-                        Text("\(store.remoteParticipant.name) • \(store.remoteParticipant.city)").tag(true)
+                    Label(
+                        store.events.first?.text ?? "\(store.remoteParticipant.name) joined from \(store.remoteParticipant.city)",
+                        systemImage: store.events.first?.symbol ?? "person.2.fill"
+                    )
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(SyncFlowPalette.rose)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 15)
+                    .frame(height: 52)
+                    .background(SyncFlowPalette.blush.opacity(0.6), in: RoundedRectangle(cornerRadius: 17))
+
+                    ForEach(menu) { item in
+                        MenuItemCard(
+                            item: item,
+                            counterpart: counterpart(for: item),
+                            editable: !viewingOther,
+                            quantity: store.localCart.items.first(where: { $0.menuItem.id == item.id })?.quantity ?? 0,
+                            add: { store.addLocalItem(item) },
+                            remove: { store.removeLocalItem(item) }
+                        )
                     }
-                    .pickerStyle(.segmented)
                 }
                 .padding(.horizontal, 20)
-
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 14) {
-                        Label(
-                            store.events.first?.text ?? "\(store.remoteParticipant.name) joined from \(store.remoteParticipant.city)",
-                            systemImage: store.events.first?.symbol ?? "person.2.fill"
-                        )
-                        .font(.system(size: 12.5, weight: .bold))
-                        .foregroundStyle(SyncFlowPalette.rose)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 15)
-                        .frame(height: 52)
-                        .background(SyncFlowPalette.blush.opacity(0.6), in: RoundedRectangle(cornerRadius: 17))
-
-                        ForEach(menu) { item in
-                            MenuItemCard(
-                                item: item,
-                                counterpart: counterpart(for: item),
-                                editable: !viewingOther,
-                                quantity: store.localCart.items.first(where: { $0.menuItem.id == item.id })?.quantity ?? 0,
-                                add: { store.addLocalItem(item) },
-                                remove: { store.removeLocalItem(item) }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 18)
-                    .padding(.bottom, 100)
-                }
+                .padding(.bottom, 100)
             }
+            .scrollIndicators(.hidden)
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationTitle("Choose dinner")
+        .navigationBarTitleDisplayMode(.large)
         .safeAreaInset(edge: .bottom) {
             Button {
                 store.go(.carts)
@@ -75,45 +65,36 @@ struct SharedMenuView: View {
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
         }
-        .onAppear {
+        .task {
             if store.backendConnected == false && store.table.partnerCart.items.isEmpty {
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1.2))
-                    store.simulatePartnerAction()
-                }
+                try? await Task.sleep(for: .seconds(1.2))
+                guard !Task.isCancelled else { return }
+                store.simulatePartnerAction()
             }
         }
+        .sensoryFeedback(.selection, trigger: store.localCart.itemCount)
     }
 
-    private var menuHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var menuContext: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text((pair?.theme ?? "Shared menu").uppercased())
                 .font(.system(size: 11.5, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(SyncFlowPalette.rose)
 
-            HStack(alignment: .top, spacing: 7) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Choose dinner")
-                    Text("together")
-                }
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-                .foregroundStyle(SyncFlowPalette.ink)
-                .tracking(-0.8)
-
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(SyncFlowPalette.rose)
-                    .rotationEffect(.degrees(-15))
-                    .padding(.top, 30)
-            }
-
-            Text("You can see \(store.remoteParticipant.name)’s cart, but only they\ncan change it.")
+            Text("You can see \(store.remoteParticipant.name)’s cart, but only they can change it.")
                 .font(.system(size: 13))
                 .foregroundStyle(SyncFlowPalette.muted)
-                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Picker("Whose local menu", selection: $viewingOther) {
+                Text("Your menu • \(store.localParticipant.city)").tag(false)
+                Text("\(store.remoteParticipant.name) • \(store.remoteParticipant.city)").tag(true)
+            }
+            .pickerStyle(.segmented)
         }
-        .padding(.top, 8)
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func counterpart(for item: MenuItem) -> MenuItem? {
@@ -170,26 +151,12 @@ struct MenuItemCard: View {
                         .foregroundStyle(SyncFlowPalette.ink)
                     Spacer()
                     if editable {
-                        if quantity > 0 {
-                            HStack(spacing: 10) {
-                                Button(action: remove) { Image(systemName: "minus") }
-                                Text("\(quantity)")
-                                    .font(.system(size: 13, weight: .bold).monospacedDigit())
-                                Button(action: add) { Image(systemName: "plus") }
-                            }
-                            .foregroundStyle(SyncFlowPalette.rose)
-                            .padding(.horizontal, 10)
-                            .frame(height: 32)
-                            .background(SyncFlowPalette.blush.opacity(0.85), in: Capsule())
-                        } else {
-                            Button(action: add) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(SyncFlowPalette.rose)
-                                    .frame(width: 38, height: 38)
-                                    .background(SyncFlowPalette.blush.opacity(0.9), in: Circle())
-                            }
-                        }
+                        QuantityControl(
+                            itemName: item.name,
+                            quantity: quantity,
+                            add: add,
+                            remove: remove
+                        )
                     } else {
                         Label("View only", systemImage: "eye")
                             .font(.system(size: 10.5))
@@ -200,8 +167,6 @@ struct MenuItemCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .syncFlowCard(cornerRadius: 23, padding: 14)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.name), \(item.price.rupees), \(item.description)")
     }
 
     private var dishAsset: String {
@@ -252,6 +217,7 @@ struct DualCartView: View {
             }
             .padding(20)
         }
+        .sensoryFeedback(.success, trigger: store.localReady)
     }
 }
 
@@ -382,7 +348,7 @@ struct CheckoutView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(participant.name).font(.headline)
                 Text(method).font(.caption).foregroundStyle(.secondary)
-                Text(participant.address.line).font(.caption2).foregroundStyle(.secondary)
+                Text(participant.address.line).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing) {

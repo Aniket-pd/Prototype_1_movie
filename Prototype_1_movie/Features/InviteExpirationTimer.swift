@@ -11,7 +11,9 @@ struct InviteExpirationTimer: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = max(0, Int(expirationDate.timeIntervalSince(context.date)))
             Label(
-                remaining == 0 ? "Invite expired" : "Invite expires in \(formatted(remaining))",
+                remaining == 0
+                    ? "Invite expired"
+                    : "Invite expires in \(Duration.seconds(remaining).formatted(.time(pattern: .minuteSecond)))",
                 systemImage: remaining == 0 ? "clock.badge.exclamationmark" : "clock"
             )
             .font(.subheadline)
@@ -24,9 +26,5 @@ struct InviteExpirationTimer: View {
                     : "Invite expires in \(remaining / 60) minutes and \(remaining % 60) seconds"
             )
         }
-    }
-
-    private func formatted(_ seconds: Int) -> String {
-        String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 }

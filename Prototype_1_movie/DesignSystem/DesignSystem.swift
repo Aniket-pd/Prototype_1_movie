@@ -3,16 +3,8 @@ import SwiftUI
 enum Brand {
     static let red = Color(red: 0.76, green: 0.05, blue: 0.12)
     static let redDark = Color(red: 0.48, green: 0.02, blue: 0.07)
-    static let cream = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.09, green: 0.075, blue: 0.07, alpha: 1)
-            : UIColor(red: 0.98, green: 0.95, blue: 0.90, alpha: 1)
-    })
-    static let peach = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.34, green: 0.20, blue: 0.16, alpha: 1)
-            : UIColor(red: 0.98, green: 0.84, blue: 0.73, alpha: 1)
-    })
+    static let cream = Color(.systemGroupedBackground)
+    static let peach = Color(red: 0.98, green: 0.84, blue: 0.73)
     static let green = Color(red: 0.08, green: 0.48, blue: 0.31)
 }
 
@@ -24,14 +16,19 @@ struct WarmBackground: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
+            .frame(minHeight: 52)
+            .padding(.horizontal)
             .background(Brand.red.opacity(configuration.isPressed ? 0.75 : 1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .opacity(isEnabled ? 1 : 0.45)
     }
 }
 
@@ -50,11 +47,11 @@ extension View {
 
 struct AvatarView: View {
     let participant: Participant
-    var size: CGFloat = 44
+    var size: Double = 44
 
     var body: some View {
         Text(participant.initials)
-            .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
+            .font(.body.bold())
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(participant.isHost ? Brand.red : .orange, in: Circle())
@@ -70,14 +67,13 @@ struct SectionHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(eyebrow.uppercased())
-                .font(.caption.weight(.bold))
+                .font(.footnote.bold())
                 .tracking(1.2)
                 .foregroundStyle(Brand.red)
             Text(title)
                 .font(.largeTitle.bold())
-                .minimumScaleFactor(0.75)
             Text(subtitle)
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
