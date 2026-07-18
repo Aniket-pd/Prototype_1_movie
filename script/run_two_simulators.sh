@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT="$ROOT_DIR/Prototype_1_movie.xcodeproj"
+DERIVED_DATA="$ROOT_DIR/.build"
+APP="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Prototype_1_movie.app"
+BUNDLE_ID="aniket.Prototype-1-movie"
+HOST_DEVICE="${SYNC_TABLE_HOST_DEVICE:-17F91CC9-BF29-4DDB-9E4C-7C501A880A6D}"
+PARTNER_DEVICE="${SYNC_TABLE_PARTNER_DEVICE:-98EFCD44-1B5F-4AEC-AA09-FF77CA2FCEE0}"
+BACKEND_URL="${SYNC_TABLE_BACKEND_URL:-http://localhost:8787}"
+
+mkdir -p "$DERIVED_DATA"
+if ! curl --silent --fail "$BACKEND_URL/health" >/dev/null; then
+  nohup "$ROOT_DIR/script/demo_server.sh" >"$ROOT_DIR/.build/demo-server.log" 2>&1 </dev/null &
+  echo "$!" >"$ROOT_DIR/.build/demo-server.pid"
+  for _ in {1..30}; do
+    curl --silent --fail "$BACKEND_URL/health" >/dev/null && break
+    sleep 0.1
+  done
+fi
+curl --silent --request DELETE "$BACKEND_URL/tables" >/dev/null
+
+xcodebuild \
+  -project "$PROJECT" \
+  -scheme Prototype_1_movie \
+  -destination "platform=iOS Simulator,id=$HOST_DEVICE" \
+  -derivedDataPath "$DERIVED_DATA" \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+
+for device in "$HOST_DEVICE" "$PARTNER_DEVICE"; do
+  xcrun simctl boot "$device" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$device" -b
+  xcrun simctl terminate "$device" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$device" "$BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl install "$device" "$APP"
+done
+
+open -a Simulator
+xcrun simctl launch "$HOST_DEVICE" "$BUNDLE_ID" --sync-role host --backend-url "$BACKEND_URL"
+xcrun simctl launch "$PARTNER_DEVICE" "$BUNDLE_ID" --sync-role partner --backend-url "$BACKEND_URL"
+
+echo "Host and partner launched against $BACKEND_URL"
+echo "Backend log: $ROOT_DIR/.build/demo-server.log"

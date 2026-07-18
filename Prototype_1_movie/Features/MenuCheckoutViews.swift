@@ -2,20 +2,24 @@ import SwiftUI
 
 struct SharedMenuView: View {
     let store: SyncTableStore
-    @State private var viewingPartner = false
+    @State private var viewingOther = false
 
     private var pair: RestaurantPair? { store.table.selectedPair }
     private var menu: [MenuItem] {
-        viewingPartner ? (pair?.partnerRestaurant.menu ?? []) : (pair?.hostRestaurant.menu ?? [])
+        viewingOther ? (store.remoteRestaurant?.menu ?? []) : (store.localRestaurant?.menu ?? [])
     }
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(eyebrow: pair?.theme ?? "Shared menu", title: "Choose dinner together", subtitle: "You can see Aisha’s cart, but only she can change it.")
-                Picker("Whose local menu", selection: $viewingPartner) {
-                    Text("Your menu • Mumbai").tag(false)
-                    Text("Aisha • Bengaluru").tag(true)
+                SectionHeader(
+                    eyebrow: pair?.theme ?? "Shared menu",
+                    title: "Choose dinner together",
+                    subtitle: "You can see \(store.remoteParticipant.name)’s cart, but only they can change it."
+                )
+                Picker("Whose local menu", selection: $viewingOther) {
+                    Text("Your menu • \(store.localParticipant.city)").tag(false)
+                    Text("\(store.remoteParticipant.name) • \(store.remoteParticipant.city)").tag(true)
                 }
                 .pickerStyle(.segmented)
             }
@@ -40,10 +44,10 @@ struct SharedMenuView: View {
                         MenuItemCard(
                             item: item,
                             counterpart: counterpart(for: item),
-                            editable: !viewingPartner,
-                            quantity: store.table.hostCart.items.first(where: { $0.menuItem.id == item.id })?.quantity ?? 0,
-                            add: { store.addHostItem(item) },
-                            remove: { store.removeHostItem(item) }
+                            editable: !viewingOther,
+                            quantity: store.localCart.items.first(where: { $0.menuItem.id == item.id })?.quantity ?? 0,
+                            add: { store.addLocalItem(item) },
+                            remove: { store.removeLocalItem(item) }
                         )
                     }
                 }
@@ -53,13 +57,12 @@ struct SharedMenuView: View {
         }
         .safeAreaInset(edge: .bottom) {
             Button {
-                store.seedCarts()
                 store.go(.carts)
             } label: {
                 HStack {
                     Text("View both carts")
                     Spacer()
-                    Text("\(store.table.hostCart.itemCount) items • \(store.table.hostCart.total.rupees)")
+                    Text("\(store.localCart.itemCount) items • \(store.localCart.total.rupees)")
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -67,7 +70,7 @@ struct SharedMenuView: View {
             .background(.ultraThinMaterial)
         }
         .onAppear {
-            if store.table.partnerCart.items.isEmpty {
+            if store.backendConnected == false && store.table.partnerCart.items.isEmpty {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(1.2))
                     store.simulatePartnerAction()
@@ -77,7 +80,7 @@ struct SharedMenuView: View {
     }
 
     private func counterpart(for item: MenuItem) -> MenuItem? {
-        guard let otherMenu = pair?.partnerRestaurant.menu else { return nil }
+        guard let otherMenu = store.remoteRestaurant?.menu else { return nil }
         return otherMenu.max { lhs, rhs in
             item.tags.intersection(lhs.tags).count < item.tags.intersection(rhs.tags).count
         }
@@ -154,30 +157,24 @@ struct DualCartView: View {
             VStack(spacing: 18) {
                 SectionHeader(eyebrow: "Two carts", title: "Ready when you both are", subtitle: "Separate orders, addresses and payments—linked into one shared arrival window.")
 
-                CartCard(participant: store.table.host, cart: store.table.hostCart, estimate: "42–46 min", isReady: store.table.hostReady, editable: true) {
-                    store.setHostReady()
+                CartCard(participant: store.localParticipant, cart: store.localCart, estimate: store.role == .host ? "42–46 min" : "44–48 min", isReady: store.localReady, editable: true) {
+                    store.setLocalReady()
                 }
-                CartCard(participant: store.table.partner, cart: store.table.partnerCart, estimate: "44–48 min", isReady: store.table.partnerReady, editable: false) {}
+                CartCard(participant: store.remoteParticipant, cart: store.remoteCart, estimate: store.role == .host ? "44–48 min" : "42–46 min", isReady: store.remoteReady, editable: false) {}
 
-                if store.table.hostReady && !store.table.partnerReady {
+                if store.localReady && !store.remoteReady {
                     HStack(spacing: 12) {
                         ProgressView()
-                        Text("You’re ready. Waiting for Aisha…")
+                        Text("You’re ready. Waiting for \(store.remoteParticipant.name)…")
                             .font(.subheadline.weight(.semibold))
                     }
                     .padding()
                 }
 
-                Button("Demo: Make Aisha ready") {
-                    store.setBothReady()
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
                 Button {
-                    store.go(.checkout)
+                    store.go(.payment)
                 } label: {
-                    Label(store.table.hostReady && store.table.partnerReady ? "Continue to linked checkout" : "Waiting for both", systemImage: "link")
+                    Label(store.table.hostReady && store.table.partnerReady ? "Choose payment arrangement" : "Waiting for both", systemImage: "creditcard")
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(!(store.table.hostReady && store.table.partnerReady))
@@ -266,11 +263,35 @@ struct CheckoutView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .softCard()
 
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Confirmed payment plan", systemImage: "checkmark.shield.fill")
+                        .font(.headline)
+                        .foregroundStyle(Brand.green)
+                    Text(store.paymentSummary).font(.title3.bold())
+                    Text("Final total \(store.combinedFinalAmount.rupees)")
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Label("Aniket confirmed", systemImage: "checkmark.circle.fill")
+                        Spacer()
+                        Label("Aisha confirmed", systemImage: "checkmark.circle.fill")
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(Brand.green)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .softCard()
+
                 Button {
-                    Task { await store.authorizeAndSubmit() }
+                    if store.table.orders.isEmpty {
+                        Task { await store.authorizeAndSubmit() }
+                    } else {
+                        store.go(.tracking)
+                    }
                 } label: {
                     if store.isSubmitting {
                         HStack { ProgressView().tint(.white); Text("Authorizing both payments…") }
+                    } else if !store.table.orders.isEmpty {
+                        Label("View live linked orders", systemImage: "location.fill")
                     } else {
                         Label("Authorize my payment & link orders", systemImage: "lock.shield.fill")
                     }

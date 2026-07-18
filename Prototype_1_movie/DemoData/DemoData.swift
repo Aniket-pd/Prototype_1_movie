@@ -43,6 +43,8 @@ enum DemoData {
         .init(id: UUID(), name: "Ember & Grain", city: "Mumbai", cuisine: "North Indian", rating: 4.6, priceLevel: 2, preparationMinutes: 24, deliveryMinutes: 18, coordinate: .init(latitude: 19.0680, longitude: 72.8330), menu: mumbaiMenu),
         .init(id: UUID(), name: "Tandoor House", city: "Bengaluru", cuisine: "North Indian", rating: 4.7, priceLevel: 2, preparationMinutes: 22, deliveryMinutes: 21, coordinate: .init(latitude: 12.9718, longitude: 77.6412), menu: bengaluruMenu),
         .init(id: UUID(), name: "Noodle Theory", city: "Mumbai", cuisine: "Asian", rating: 4.5, priceLevel: 2, preparationMinutes: 20, deliveryMinutes: 20, coordinate: .init(latitude: 19.0550, longitude: 72.8300), menu: asianMumbai),
-        .init(id: UUID(), name: "Miso Social", city: "Bengaluru", cuisine: "Asian", rating: 4.4, priceLevel: 2, preparationMinutes: 23, deliveryMinutes: 18, coordinate: .init(latitude: 12.9820, longitude: 77.6350), menu: asianBengaluru)
+        .init(id: UUID(), name: "Miso Social", city: "Bengaluru", cuisine: "Asian", rating: 4.4, priceLevel: 2, preparationMinutes: 23, deliveryMinutes: 18, coordinate: .init(latitude: 12.9820, longitude: 77.6350), menu: asianBengaluru),
+        .init(id: UUID(), name: "Zomato Kitchen", city: "Mumbai", cuisine: "Multi-cuisine", rating: 4.6, priceLevel: 2, preparationMinutes: 21, deliveryMinutes: 18, coordinate: .init(latitude: 19.0615, longitude: 72.8401), menu: mumbaiMenu + asianMumbai),
+        .init(id: UUID(), name: "Zomato Kitchen", city: "Bengaluru", cuisine: "Multi-cuisine", rating: 4.6, priceLevel: 2, preparationMinutes: 22, deliveryMinutes: 19, coordinate: .init(latitude: 12.9801, longitude: 77.6382), menu: bengaluruMenu + asianBengaluru)
     ]
 }

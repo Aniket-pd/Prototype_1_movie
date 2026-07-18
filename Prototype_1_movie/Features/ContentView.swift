@@ -11,6 +11,24 @@ struct ContentView: View {
                 stageView
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
             }
+            .overlay(alignment: .top) {
+                VStack(spacing: 8) {
+                    if store.stage != .home, store.connectionState != .synced {
+                        ConnectionStatusView(state: store.connectionState)
+                            .padding(.horizontal, 20)
+                    }
+                    if let event = store.events.first, Date.now.timeIntervalSince(event.date) < 8 {
+                        Label(event.text, systemImage: event.symbol)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(.ultraThickMaterial, in: Capsule())
+                            .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .padding(.top, 8)
+            }
             .toolbar {
                 if store.stage != .home {
                     ToolbarItem(placement: .topBarLeading) {
@@ -25,12 +43,18 @@ struct ContentView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        store.showDeveloperMenu.toggle()
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
+                    HStack(spacing: 9) {
+                        Circle()
+                            .fill(store.backendConnected ? Brand.green : Brand.red)
+                            .frame(width: 8, height: 8)
+                            .accessibilityLabel(store.backendConnected ? "Demo backend connected" : "Demo backend disconnected")
+                        Button {
+                            store.showDeveloperMenu.toggle()
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .accessibilityLabel("Demo controls")
                     }
-                    .accessibilityLabel("Demo controls")
                 }
             }
             .sheet(isPresented: $store.showDeveloperMenu) {
@@ -47,11 +71,13 @@ struct ContentView: View {
 
     @ViewBuilder private var stageView: some View {
         switch store.stage {
-        case .home: HomeView(store: store)
+        case .home: SyncTableEntryView(store: store)
         case .invite: InviteView(store: store)
+        case .modeSelection: OrderingModeView(store: store)
         case .matching: MatchingView(store: store)
         case .menu: SharedMenuView(store: store)
         case .carts: DualCartView(store: store)
+        case .payment: PaymentDecisionView(store: store)
         case .checkout: CheckoutView(store: store)
         case .tracking: TrackingView(store: store)
         case .firstBite: FirstBiteView(store: store)

@@ -11,12 +11,12 @@ struct HomeView: View {
                         Text("zomato")
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .foregroundStyle(Brand.red)
-                        Text("Good evening, Aniket")
+                        Text("Good evening, \(store.localParticipant.name)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    AvatarView(participant: store.table.host)
+                    AvatarView(participant: store.localParticipant)
                 }
 
                 VStack(alignment: .leading, spacing: 18) {
@@ -37,7 +37,7 @@ struct HomeView: View {
                     Button {
                         store.go(.invite)
                     } label: {
-                        Label("Create Sync Table", systemImage: "person.2.badge.plus")
+                        Label(store.role == .host ? "Create Sync Table" : "Join Sync Table", systemImage: "person.2.badge.plus")
                             .font(.headline)
                             .foregroundStyle(Brand.redDark)
                             .frame(maxWidth: .infinity)
@@ -97,11 +97,15 @@ struct InviteView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                SectionHeader(eyebrow: "Sync Table • \(store.table.id)", title: store.partnerJoined ? "Aisha is at the table" : "Bring someone to the table", subtitle: store.partnerJoined ? "Connected across Mumbai and Bengaluru." : "Send this private invite. Their order and payment stay separate.")
+                SectionHeader(
+                    eyebrow: "Sync Table • \(store.inviteCode)",
+                    title: store.bothConnected ? "Your table is connected" : "Waiting for the other person",
+                    subtitle: store.bothConnected ? "Both locations are online. Start when you’re ready." : "Share the code or link below. Ordering unlocks after both people join."
+                )
 
                 VStack(spacing: 18) {
                     HStack {
-                        participantColumn(store.table.host, connected: true)
+                        participantColumn(store.table.host, connected: store.table.hostConnected)
                         ZStack {
                             Capsule().fill(Brand.red.opacity(0.15)).frame(height: 3)
                             Image(systemName: "link")
@@ -110,20 +114,20 @@ struct InviteView: View {
                                 .background(.thinMaterial, in: Circle())
                                 .scaleEffect(pulse ? 1.08 : 0.95)
                         }
-                        participantColumn(store.table.partner, connected: store.partnerJoined)
-                            .opacity(store.partnerJoined ? 1 : 0.35)
+                        participantColumn(store.table.partner, connected: store.table.partnerConnected)
+                            .opacity(store.table.partnerConnected ? 1 : 0.45)
                     }
                     .frame(maxWidth: .infinity)
 
                     Divider()
                     VStack(spacing: 7) {
-                        Text("ST  •  7N4K")
+                        Text("ST  •  \(store.inviteCode)")
                             .font(.system(.title2, design: .monospaced, weight: .bold))
                         Text("Invite code expires in 14:32")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    ShareLink(item: "Join my Zomato Sync Table: zomato.example/sync/7N4K") {
+                    ShareLink(item: "Join my Zomato Sync Table: zomato.example/sync/\(store.inviteCode)") {
                         Label("Share Invite", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                     }
@@ -132,21 +136,37 @@ struct InviteView: View {
                 }
                 .softCard()
 
-                if !store.partnerJoined {
-                    Button("Demo: Join as Partner") {
-                        store.joinPartner()
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else {
+                if store.bothConnected {
                     Label("Securely connected", systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(Brand.green)
-                    Button {
-                        store.go(.matching)
-                    } label: {
-                        Label("Find our restaurants", systemImage: "fork.knife")
+                    if store.table.memory != nil {
+                        Button("View shared table memory", systemImage: "photo.on.rectangle.angled") {
+                            store.openMemory()
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    } else if !store.table.orders.isEmpty {
+                        Button("Resume live order", systemImage: "location.fill") {
+                            store.go(.tracking)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    } else {
+                        Button("Choose how to order", systemImage: "square.grid.2x2.fill") {
+                            store.go(.modeSelection)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                } else {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Waiting for your tablemate…")
+                            .font(.subheadline.bold())
+                    }
+                    Button("Demo: connect other user") {
+                        store.joinPartner()
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
             }
             .padding(20)
@@ -175,7 +195,11 @@ struct MatchingView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                SectionHeader(eyebrow: "Menu Twin", title: store.isMatching ? "Finding your shared flavour" : "Great matches for both of you", subtitle: "We compare only restaurants available near each address.")
+                SectionHeader(
+                    eyebrow: store.table.orderingMode?.title ?? "Restaurant match",
+                    title: store.isMatching ? "Finding your shared flavour" : "Great options for both of you",
+                    subtitle: "Browse independently. Shared choices and carts update without moving the other person’s screen."
+                )
 
                 if store.isMatching || store.matches.isEmpty {
                     VStack(spacing: 24) {
@@ -201,6 +225,7 @@ struct MatchingView: View {
                         Text("Browse shared menu")
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                    .disabled(store.table.selectedPair == nil)
                 }
             }
             .padding(20)
@@ -231,7 +256,7 @@ struct MatchCard: View {
                         .foregroundStyle(.secondary)
                 }
                 HStack {
-                    restaurantName(pair.hostRestaurant, person: "You")
+                    restaurantName(pair.hostRestaurant, person: "Aniket")
                     Image(systemName: "heart.fill").foregroundStyle(Brand.red)
                     restaurantName(pair.partnerRestaurant, person: "Aisha")
                 }

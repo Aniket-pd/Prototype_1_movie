@@ -2,7 +2,61 @@ import Foundation
 import CoreLocation
 
 enum AppStage: Int, CaseIterable, Codable {
-    case home, invite, matching, menu, carts, checkout, tracking, firstBite, dining, memory
+    case home, invite, modeSelection, matching, menu, carts, payment, checkout, tracking, firstBite, dining, memory
+}
+
+enum OrderingMode: String, CaseIterable, Codable, Identifiable {
+    case blend
+    case sameChain
+    case differentRestaurants
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .blend: "Blend"
+        case .sameChain: "Order from the same chain"
+        case .differentRestaurants: "Order from different restaurants"
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .blend: "Combine dish recommendations available near both of you."
+        case .sameChain: "Order from the nearest branch of one shared chain."
+        case .differentRestaurants: "Choose independently while keeping both orders connected."
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .blend: "square.stack.3d.up.fill"
+        case .sameChain: "building.2.fill"
+        case .differentRestaurants: "arrow.left.arrow.right"
+        }
+    }
+}
+
+enum PaymentArrangement: String, CaseIterable, Codable, Identifiable {
+    case splitEqually
+    case ownOrder
+    case onePays
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .splitEqually: "Split equally"
+        case .ownOrder: "Pay for your own order"
+        case .onePays: "One person pays for everything"
+        }
+    }
+}
+
+struct SharedPaymentDecision: Hashable, Codable {
+    var arrangement: PaymentArrangement?
+    var payerID: UUID?
+    var confirmedBy: Set<UUID> = []
+
+    func isConfirmed(by participant: Participant) -> Bool {
+        confirmedBy.contains(participant.id)
+    }
 }
 
 struct Participant: Identifiable, Hashable, Codable {
@@ -64,16 +118,24 @@ struct MenuTwinProfile: Hashable, Codable {
     let suitableCounterpart: String
 }
 
-struct RestaurantPair: Identifiable, Hashable {
-    let id = UUID()
+struct RestaurantPair: Identifiable, Hashable, Codable {
+    let id: UUID
     let hostRestaurant: Restaurant
     let partnerRestaurant: Restaurant
     let score: SyncScore
     let theme: String
     var isSameRestaurant: Bool { hostRestaurant.name == partnerRestaurant.name }
+
+    init(id: UUID = UUID(), hostRestaurant: Restaurant, partnerRestaurant: Restaurant, score: SyncScore, theme: String) {
+        self.id = id
+        self.hostRestaurant = hostRestaurant
+        self.partnerRestaurant = partnerRestaurant
+        self.score = score
+        self.theme = theme
+    }
 }
 
-struct SyncScore: Hashable {
+struct SyncScore: Hashable, Codable {
     let total: Int
     let menuSimilarity: Int
     let predictedDifference: Int
@@ -154,14 +216,21 @@ enum SharedMilestone: Int, CaseIterable, Codable {
     }
 }
 
-struct PartnerPresenceEvent: Identifiable, Hashable {
-    let id = UUID()
+struct PartnerPresenceEvent: Identifiable, Hashable, Codable {
+    let id: UUID
     let text: String
     let symbol: String
     let date: Date
+
+    init(id: UUID = UUID(), text: String, symbol: String, date: Date) {
+        self.id = id
+        self.text = text
+        self.symbol = symbol
+        self.date = date
+    }
 }
 
-struct SyncTable: Identifiable {
+struct SyncTable: Identifiable, Codable {
     let id: String
     let createdAt: Date
     let host: Participant
@@ -172,12 +241,40 @@ struct SyncTable: Identifiable {
     var hostReady: Bool
     var partnerReady: Bool
     var orders: [LinkedOrder]
+    var hostConnected: Bool = false
+    var partnerConnected: Bool = false
+    var orderingMode: OrderingMode?
+    var paymentDecision: SharedPaymentDecision = .init()
+    var memory: SyncMemory?
 }
 
-struct SyncMemory: Identifiable {
-    let id = UUID()
+struct SyncMemory: Identifiable, Hashable, Codable {
+    let id: UUID
+    let title: String
     let date: Date
     let cities: String
     let dishes: String
     let theme: String
+    let restaurantInformation: String
+    let paymentSummary: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        date: Date,
+        cities: String,
+        dishes: String,
+        theme: String,
+        restaurantInformation: String,
+        paymentSummary: String
+    ) {
+        self.id = id
+        self.title = title
+        self.date = date
+        self.cities = cities
+        self.dishes = dishes
+        self.theme = theme
+        self.restaurantInformation = restaurantInformation
+        self.paymentSummary = paymentSummary
+    }
 }

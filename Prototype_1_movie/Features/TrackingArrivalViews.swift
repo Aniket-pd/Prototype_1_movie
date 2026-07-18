@@ -57,6 +57,14 @@ struct TrackingView: View {
 
                 Button("Demo: Advance delivery") { store.advanceSimulation() }
                     .buttonStyle(.bordered)
+
+                if store.table.orders.count == 2,
+                   store.table.orders.allSatisfy({ $0.status == .delivered }) {
+                    Button("Continue to first bite", systemImage: "fork.knife") {
+                        store.go(.firstBite)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
             }
             .padding(20)
         }
@@ -64,10 +72,14 @@ struct TrackingView: View {
 
     private var honestStatus: String {
         guard store.table.orders.count == 2 else { return "The orders are being linked." }
-        let host = store.table.orders[0].status
-        let partner = store.table.orders[1].status
-        if host > partner { return "Your order is \(host.title.lowercased()). Waiting for Aisha’s restaurant." }
-        if partner > host { return "Aisha’s order is \(partner.title.lowercased()). Your restaurant is catching up." }
+        let local = store.table.orders.first(where: { $0.ownerID == store.localParticipant.id })?.status ?? .authorized
+        let remote = store.table.orders.first(where: { $0.ownerID == store.remoteParticipant.id })?.status ?? .authorized
+        if local > remote {
+            return "Your order is \(local.title.lowercased()). Waiting for \(store.remoteParticipant.name)’s restaurant."
+        }
+        if remote > local {
+            return "\(store.remoteParticipant.name)’s order is \(remote.title.lowercased()). Your restaurant is catching up."
+        }
         return "Both individual orders have reached this shared milestone."
     }
 
@@ -195,14 +207,24 @@ struct FirstBiteView: View {
             }
             Spacer()
             Button {
-                store.beginFirstBite()
+                if store.countdown == 0 {
+                    store.enterDining()
+                } else {
+                    store.beginFirstBite()
+                }
             } label: {
-                Label(store.hostReadyToEat ? "Waiting for the countdown…" : "I’m Ready to Eat", systemImage: "fork.knife")
+                Label(firstBiteButtonTitle, systemImage: "fork.knife")
             }
             .buttonStyle(PrimaryButtonStyle())
-            .disabled(store.hostReadyToEat)
+            .disabled(store.localReadyToEat && store.countdown != 0)
         }
         .padding(24)
+    }
+
+    private var firstBiteButtonTitle: String {
+        if store.countdown == 0 { return "Join the table" }
+        if store.localReadyToEat { return "Waiting for your tablemate…" }
+        return "I’m Ready to Eat"
     }
 
     private func readyPerson(_ participant: Participant, ready: Bool) -> some View {
@@ -241,7 +263,7 @@ struct DiningView: View {
                 ForEach(["😍", "🤌", "🌶️", "😂"], id: \.self) { emoji in
                     Button(emoji) {
                         selectedReaction = emoji
-                        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                        store.sendReaction(emoji)
                     }
                     .font(.title)
                     .padding(10)
@@ -257,7 +279,10 @@ struct DiningView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .softCard()
             Spacer()
-            Button("Save this table as a memory") { store.finishMeal() }
+            Button(store.table.memory == nil ? "Save this table as a memory" : "View table memory") {
+                if store.table.memory == nil { store.finishMeal() }
+                else { store.openMemory() }
+            }
                 .buttonStyle(PrimaryButtonStyle())
         }
         .padding(24)
@@ -271,7 +296,7 @@ struct MemoryView: View {
         ScrollView {
             VStack(spacing: 26) {
                 SectionHeader(eyebrow: "Sync Table memory", title: "A table worth keeping", subtitle: "Your linked orders become a small shared memory—not another receipt.")
-                if let memory = store.memory {
+                if let memory = store.table.memory {
                     VStack(alignment: .leading, spacing: 18) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 24)
@@ -286,27 +311,65 @@ struct MemoryView: View {
                                 }
                             }
                         }
-                        Text(memory.theme).font(.title.bold())
+                        Text(memory.title).font(.title.bold())
                         Label(memory.date.formatted(date: .long, time: .omitted), systemImage: "calendar")
+                        Label("\(store.table.host.name) + \(store.table.partner.name)", systemImage: "person.2.fill")
                         Label(memory.cities, systemImage: "location.fill")
                         Label(memory.dishes, systemImage: "fork.knife")
                             .fixedSize(horizontal: false, vertical: true)
+                        Label(memory.restaurantInformation, systemImage: "building.2.fill")
+                            .fixedSize(horizontal: false, vertical: true)
+                        Label(memory.paymentSummary, systemImage: "creditcard.fill")
+                            .fixedSize(horizontal: false, vertical: true)
+                        Label(memory.theme, systemImage: "square.grid.2x2.fill")
                         Text("Two locations. Two carts. One shared meal.")
                             .font(.footnote.bold()).foregroundStyle(Brand.red)
                     }
                     .softCard()
+                } else {
+                    MemoryUnavailableState(connectionState: store.connectionState)
                 }
                 Button {
-                    store.reset()
-                    store.go(.invite)
+                    store.recreateTable()
                 } label: {
                     Label("Recreate this table", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                Button("Back to Zomato home") { store.reset() }
+                Button("Back to Zomato home") { store.leaveTable() }
                     .foregroundStyle(.secondary)
             }
             .padding(20)
+        }
+    }
+}
+
+private struct MemoryUnavailableState: View {
+    let connectionState: BackendConnectionState
+
+    var body: some View {
+        switch connectionState {
+        case .loading:
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Loading your shared memory…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .softCard()
+        case .disconnected, .error:
+            ContentUnavailableView(
+                "Memory unavailable offline",
+                systemImage: "wifi.slash",
+                description: Text("Reconnect to restore the latest shared table memory.")
+            )
+            .softCard()
+        case .synced:
+            ContentUnavailableView(
+                "Memory not saved yet",
+                systemImage: "fork.knife.circle",
+                description: Text("Finish the shared meal to create this memory.")
+            )
+            .softCard()
         }
     }
 }

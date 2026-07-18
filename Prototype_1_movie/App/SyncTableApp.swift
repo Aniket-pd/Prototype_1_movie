@@ -9,6 +9,7 @@ struct SyncTableApp: App {
             ContentView(store: store)
                 .tint(Brand.red)
                 .preferredColorScheme(nil)
+                .task { await store.connectToDemoBackend() }
         }
     }
 }
