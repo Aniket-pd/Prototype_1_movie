@@ -10,63 +10,69 @@ struct SharedMenuView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(
-                    eyebrow: pair?.theme ?? "Shared menu",
-                    title: "Choose dinner together",
-                    subtitle: "You can see \(store.remoteParticipant.name)’s cart, but only they can change it."
-                )
-                Picker("Whose local menu", selection: $viewingOther) {
-                    Text("Your menu • \(store.localParticipant.city)").tag(false)
-                    Text("\(store.remoteParticipant.name) • \(store.remoteParticipant.city)").tag(true)
-                }
-                .pickerStyle(.segmented)
-            }
-            .padding(.horizontal, 20)
+        ZStack {
+            SyncFlowBackground()
 
-            ScrollView {
-                LazyVStack(spacing: 14) {
-                    if let event = store.events.first {
-                        Label(event.text, systemImage: event.symbol)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Brand.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(Brand.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                    } else {
-                        Label("\(store.remoteParticipant.name) is viewing mains", systemImage: "eye.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 15) {
+                    menuHeader
+
+                    Picker("Whose local menu", selection: $viewingOther) {
+                        Text("Your menu • \(store.localParticipant.city)").tag(false)
+                        Text("\(store.remoteParticipant.name) • \(store.remoteParticipant.city)").tag(true)
                     }
-                    ForEach(menu) { item in
-                        MenuItemCard(
-                            item: item,
-                            counterpart: counterpart(for: item),
-                            editable: !viewingOther,
-                            quantity: store.localCart.items.first(where: { $0.menuItem.id == item.id })?.quantity ?? 0,
-                            add: { store.addLocalItem(item) },
-                            remove: { store.removeLocalItem(item) }
-                        )
-                    }
+                    .pickerStyle(.segmented)
                 }
-                .padding(20)
-                .padding(.bottom, 85)
+                .padding(.horizontal, 20)
+
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 14) {
+                        Label(
+                            store.events.first?.text ?? "\(store.remoteParticipant.name) joined from \(store.remoteParticipant.city)",
+                            systemImage: store.events.first?.symbol ?? "person.2.fill"
+                        )
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(SyncFlowPalette.rose)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 15)
+                        .frame(height: 52)
+                        .background(SyncFlowPalette.blush.opacity(0.6), in: RoundedRectangle(cornerRadius: 17))
+
+                        ForEach(menu) { item in
+                            MenuItemCard(
+                                item: item,
+                                counterpart: counterpart(for: item),
+                                editable: !viewingOther,
+                                quantity: store.localCart.items.first(where: { $0.menuItem.id == item.id })?.quantity ?? 0,
+                                add: { store.addLocalItem(item) },
+                                remove: { store.removeLocalItem(item) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 100)
+                }
             }
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             Button {
                 store.go(.carts)
             } label: {
-                HStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "basket.fill")
                     Text("View both carts")
                     Spacer()
                     Text("\(store.localCart.itemCount) items • \(store.localCart.total.rupees)")
+                        .font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "arrow.right")
                 }
+                .padding(.horizontal, 20)
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding()
+            .buttonStyle(SyncFlowPrimaryButtonStyle())
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
             .background(.ultraThinMaterial)
         }
         .onAppear {
@@ -77,6 +83,37 @@ struct SharedMenuView: View {
                 }
             }
         }
+    }
+
+    private var menuHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text((pair?.theme ?? "Shared menu").uppercased())
+                .font(.system(size: 11.5, weight: .bold))
+                .tracking(1.2)
+                .foregroundStyle(SyncFlowPalette.rose)
+
+            HStack(alignment: .top, spacing: 7) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Choose dinner")
+                    Text("together")
+                }
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundStyle(SyncFlowPalette.ink)
+                .tracking(-0.8)
+
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(SyncFlowPalette.rose)
+                    .rotationEffect(.degrees(-15))
+                    .padding(.top, 30)
+            }
+
+            Text("You can see \(store.remoteParticipant.name)’s cart, but only they\ncan change it.")
+                .font(.system(size: 13))
+                .foregroundStyle(SyncFlowPalette.muted)
+                .lineSpacing(5)
+        }
+        .padding(.top, 8)
     }
 
     private func counterpart(for item: MenuItem) -> MenuItem? {
@@ -96,56 +133,89 @@ struct MenuItemCard: View {
     let remove: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(Brand.peach.opacity(0.7))
-                    .frame(width: 88, height: 88)
-                Image(systemName: item.symbol)
-                    .font(.system(size: 31))
-                    .foregroundStyle(Brand.redDark)
-            }
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .center, spacing: 14) {
+            Image(dishAsset)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 92, height: 112)
+                .background(SyncFlowPalette.blush.opacity(0.45), in: RoundedRectangle(cornerRadius: 18))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 5) {
                     Image(systemName: item.isVegetarian ? "leaf.fill" : "circle.fill")
-                        .font(.caption2).foregroundStyle(item.isVegetarian ? Brand.green : Brand.red)
-                    Text(item.name).font(.headline)
+                        .font(.system(size: 9))
+                        .foregroundStyle(item.isVegetarian ? SyncFlowPalette.success : SyncFlowPalette.rose)
+                    Text(item.name)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(SyncFlowPalette.ink)
+                        .lineLimit(2)
                 }
                 Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(SyncFlowPalette.muted)
                     .lineLimit(2)
+                    .lineSpacing(2)
+
                 if let counterpart {
                     Label("Twin: \(counterpart.name)", systemImage: "arrow.left.arrow.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Brand.red)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(SyncFlowPalette.rose)
                         .lineLimit(1)
                 }
+
                 HStack {
-                    Text(item.price.rupees).font(.subheadline.bold())
+                    Text(item.price.rupees)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(SyncFlowPalette.ink)
                     Spacer()
                     if editable {
                         if quantity > 0 {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 10) {
                                 Button(action: remove) { Image(systemName: "minus") }
-                                Text("\(quantity)").font(.headline.monospacedDigit())
+                                Text("\(quantity)")
+                                    .font(.system(size: 13, weight: .bold).monospacedDigit())
                                 Button(action: add) { Image(systemName: "plus") }
                             }
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Brand.red.opacity(0.1), in: Capsule())
+                            .foregroundStyle(SyncFlowPalette.rose)
+                            .padding(.horizontal, 10)
+                            .frame(height: 32)
+                            .background(SyncFlowPalette.blush.opacity(0.85), in: Capsule())
                         } else {
-                            Button("Add", action: add).buttonStyle(.bordered).tint(Brand.red)
+                            Button(action: add) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(SyncFlowPalette.rose)
+                                    .frame(width: 38, height: 38)
+                                    .background(SyncFlowPalette.blush.opacity(0.9), in: Circle())
+                            }
                         }
                     } else {
-                        Label("View only", systemImage: "eye").font(.caption).foregroundStyle(.secondary)
+                        Label("View only", systemImage: "eye")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(SyncFlowPalette.muted)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .softCard()
+        .syncFlowCard(cornerRadius: 23, padding: 14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.name), \(item.price.rupees), \(item.description)")
+    }
+
+    private var dishAsset: String {
+        let name = item.name.lowercased()
+        if name.contains("paneer") || name.contains("tandoori") {
+            return "MenuDishPaneer"
+        }
+        if name.contains("dal") || name.contains("naan") {
+            return "MenuDishDal"
+        }
+        if name.contains("lemon") || name.contains("nimbu") || name.contains("soda") {
+            return "MenuDishLemonade"
+        }
+        return "MenuDishDessert"
     }
 }
 

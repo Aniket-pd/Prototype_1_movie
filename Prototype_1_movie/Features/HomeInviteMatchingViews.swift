@@ -92,41 +92,226 @@ struct HomeView: View {
 
 struct InviteView: View {
     let store: SyncTableStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                SectionHeader(
-                    eyebrow: store.bothConnected ? "Sync Table connected" : "Invite someone",
-                    title: store.bothConnected ? "Your table is connected" : "Your table is ready",
-                    subtitle: store.bothConnected
-                        ? "Both locations are online. Start when you’re ready."
-                        : "Share this code or invite link to bring someone to your table."
+        ZStack {
+            SyncFlowBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    inviteHero
+                    participantsCard
+                    statusCard
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 32)
+            }
+        }
+        .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    private var inviteHero: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("SYNC TABLE  •  \(store.inviteCode)")
+                        .font(.system(size: 12, weight: .bold))
+                        .tracking(1.6)
+                        .foregroundStyle(SyncFlowPalette.rose)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(store.bothConnected ? "Your table is" : "Waiting for the")
+                            .foregroundStyle(SyncFlowPalette.ink)
+                        Text(store.bothConnected ? "connected" : "other person")
+                            .foregroundStyle(SyncFlowPalette.rose)
+                    }
+                    .font(.system(size: 31, weight: .bold, design: .rounded))
+                    .tracking(-0.8)
+
+                    Text(
+                        store.bothConnected
+                            ? "Both locations are online.\nStart when you’re ready."
+                            : "Share the code or link below.\nOrdering unlocks after both people join."
+                    )
+                    .font(.system(size: 14))
+                    .foregroundStyle(SyncFlowPalette.muted)
+                    .lineSpacing(5)
+                    .padding(.top, 7)
+                }
+                .frame(width: width * 0.62, alignment: .leading)
+                .zIndex(2)
+
+                Image("InviteWaitingHero")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: width * 0.69)
+                    .offset(x: width * 0.38, y: 14)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(height: 205)
+    }
+
+    private var participantsCard: some View {
+        VStack(spacing: 22) {
+            HStack(alignment: .top, spacing: 0) {
+                inviteParticipant(
+                    store.localParticipant,
+                    connected: store.localConnected,
+                    local: true
                 )
 
-                if store.bothConnected {
-                    ConnectedInviteView(store: store)
-                        .transition(
-                            reduceMotion
-                                ? .opacity
-                                : .move(edge: .bottom).combined(with: .opacity)
-                        )
-                } else {
-                    WaitingInviteView(
-                        inviteCode: store.inviteCode,
-                        createdAt: store.table.createdAt
+                ZStack {
+                    HStack(spacing: 4) {
+                        ForEach(0..<7, id: \.self) { _ in
+                            Capsule()
+                                .fill(SyncFlowPalette.rose.opacity(0.28))
+                                .frame(width: 7, height: 2)
+                        }
+                    }
+                    Image(systemName: "link")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(SyncFlowPalette.rose)
+                        .frame(width: 50, height: 50)
+                        .background(.white.opacity(0.9), in: Circle())
+                        .shadow(color: SyncFlowPalette.ink.opacity(0.06), radius: 10, y: 5)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 38)
+
+                inviteParticipant(
+                    store.remoteParticipant,
+                    connected: store.remoteConnected,
+                    local: false
+                )
+            }
+
+            Divider().overlay(SyncFlowPalette.rose.opacity(0.09))
+
+            VStack(spacing: 7) {
+                Text("ST  •  \(store.inviteCode)")
+                    .font(.system(size: 25, weight: .bold, design: .monospaced))
+                    .foregroundStyle(SyncFlowPalette.ink)
+                    .textSelection(.enabled)
+                InviteExpirationTimer(createdAt: store.table.createdAt)
+            }
+
+            ShareLink(item: "Join my Zomato Sync Table: zomato.example/sync/\(store.inviteCode)") {
+                Label("Share Invite", systemImage: "square.and.arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(SyncFlowPalette.rose)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 58)
+                    .background(SyncFlowPalette.blush.opacity(0.74), in: RoundedRectangle(cornerRadius: 18))
+            }
+        }
+        .syncFlowCard(cornerRadius: 26, padding: 18)
+    }
+
+    private func inviteParticipant(_ participant: Participant, connected: Bool, local: Bool) -> some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                Text(participant.initials)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(width: 64, height: 64)
+                    .background(
+                        LinearGradient(
+                            colors: local
+                                ? [SyncFlowPalette.coral, SyncFlowPalette.rose]
+                                : [Color.orange.opacity(0.72), Color(red: 1, green: 0.66, blue: 0.48)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Circle()
                     )
-                    .transition(.opacity)
+                Circle()
+                    .fill(connected ? SyncFlowPalette.success : Color.orange)
+                    .frame(width: 14, height: 14)
+                    .overlay(Circle().stroke(.white, lineWidth: 3))
+            }
+
+            Text(participant.name)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(SyncFlowPalette.ink)
+            Text(participant.city)
+                .font(.system(size: 12))
+                .foregroundStyle(SyncFlowPalette.muted)
+
+            HStack(spacing: 5) {
+                Text(connected ? "Connected" : "Waiting…")
+                if !connected {
+                    ProgressView().controlSize(.mini).tint(SyncFlowPalette.rose)
+                }
+            }
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(connected ? SyncFlowPalette.success : SyncFlowPalette.ink)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                (connected ? SyncFlowPalette.success : Color.orange).opacity(0.09),
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+        }
+        .frame(width: 103)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private var statusCard: some View {
+        if store.bothConnected {
+            Button {
+                if store.table.memory != nil {
+                    store.openMemory()
+                } else if !store.table.orders.isEmpty {
+                    store.go(.tracking)
+                } else {
+                    store.go(.modeSelection)
+                }
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Your tablemate is here")
+                            .font(.system(size: 16, weight: .bold))
+                        Text("Choose how tonight should work.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.82))
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.right")
+                }
+            }
+            .buttonStyle(SyncFlowPrimaryButtonStyle())
+        } else {
+            HStack(spacing: 15) {
+                ProgressView()
+                    .tint(SyncFlowPalette.rose)
+                    .controlSize(.large)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Waiting for your tablemate…")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(SyncFlowPalette.rose)
+                    Text("Don’t worry, we’ll notify you\nwhen they join!")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SyncFlowPalette.muted)
+                        .lineSpacing(4)
+                }
+                Spacer()
+                ZStack {
+                    Image(systemName: "envelope.fill")
+                        .font(.system(size: 35))
+                        .foregroundStyle(SyncFlowPalette.rose.opacity(0.72))
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white)
                 }
             }
             .padding(20)
-            .animation(
-                reduceMotion
-                    ? .easeOut(duration: 0.2)
-                    : .spring(response: 0.55, dampingFraction: 0.82),
-                value: store.bothConnected
-            )
+            .background(SyncFlowPalette.blush.opacity(0.55), in: RoundedRectangle(cornerRadius: 24))
         }
     }
 }
@@ -135,54 +320,111 @@ struct MatchingView: View {
     let store: SyncTableStore
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                SectionHeader(
-                    eyebrow: store.table.orderingMode?.title ?? "Restaurant match",
-                    title: store.isMatching ? "Finding your shared flavour" : "Great options for both of you",
-                    subtitle: "Browse independently. Shared choices and carts update without moving the other person’s screen."
-                )
+        ZStack {
+            SyncFlowBackground()
 
-                if store.isMatching || store.matches.isEmpty {
-                    VStack(spacing: 24) {
-                        ZStack {
-                            Circle().stroke(Brand.red.opacity(0.12), lineWidth: 18).frame(width: 150, height: 150)
-                            ProgressView().controlSize(.large).tint(Brand.red)
-                            Image(systemName: "fork.knife").font(.title).offset(y: 40)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    matchHero
+
+                    if store.isMatching || store.matches.isEmpty {
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .controlSize(.large)
+                                .tint(SyncFlowPalette.rose)
+                            Text("Checking availability • menus • timing")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(SyncFlowPalette.muted)
                         }
-                        Text("Checking availability • menus • timing")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 60)
-                } else {
-                    ForEach(store.matches) { pair in
-                        MatchCard(
-                            pair: pair,
-                            selected: store.table.selectedPair?.id == pair.id,
-                            hostName: store.table.host.name,
-                            partnerName: store.table.partner.name
-                        ) {
-                            store.select(pair)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 70)
+                        .syncFlowCard()
+                    } else {
+                        ForEach(store.matches) { pair in
+                            MatchCard(
+                                pair: pair,
+                                selected: store.table.selectedPair?.id == pair.id,
+                                hostName: store.table.host.name,
+                                partnerName: store.table.partner.name
+                            ) {
+                                store.select(pair)
+                            }
                         }
+
+                        Button {
+                            store.go(.menu)
+                        } label: {
+                            HStack {
+                                Image(systemName: "fork.knife")
+                                Text("Browse shared menu")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .padding(.horizontal, 22)
+                        }
+                        .buttonStyle(SyncFlowPrimaryButtonStyle())
+                        .disabled(store.table.selectedPair == nil)
                     }
-                    Button {
-                        store.go(.menu)
-                    } label: {
-                        Text("Browse shared menu")
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(store.table.selectedPair == nil)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 34)
             }
-            .padding(20)
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task {
-            if store.matches.isEmpty { await store.findMatches() }
+            if store.matches.isEmpty {
+                await store.findMatches()
+            }
+            if store.table.selectedPair == nil, let first = store.matches.first {
+                store.select(first)
+            }
         }
     }
-}
 
+    private var matchHero: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text((store.table.orderingMode?.title ?? "Restaurant match").uppercased())
+                        .font(.system(size: 11.5, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(SyncFlowPalette.rose)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(store.isMatching ? "Finding options" : "Great options")
+                        HStack(spacing: 6) {
+                            Text("for")
+                            Text("both").foregroundStyle(SyncFlowPalette.rose)
+                            Text("of you")
+                        }
+                    }
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(SyncFlowPalette.ink)
+                    .tracking(-0.8)
+
+                    Text("Browse independently. Shared choices\nand carts update without moving the\nother person’s screen.")
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(SyncFlowPalette.muted)
+                        .lineSpacing(5)
+                        .padding(.top, 5)
+                }
+                .frame(width: width * 0.68, alignment: .leading)
+                .zIndex(2)
+
+                Image("RestaurantMatchHero")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: width * 0.58)
+                    .offset(x: width * 0.48, y: 25)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(height: 225)
+    }
+}
 struct MatchCard: View {
     let pair: RestaurantPair
     let selected: Bool
@@ -192,46 +434,133 @@ struct MatchCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Label(pair.isSameRestaurant ? "Same restaurant" : "Similar menus", systemImage: pair.isSameRestaurant ? "equal.circle.fill" : "arrow.left.arrow.right.circle.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(pair.isSameRestaurant ? Brand.green : Brand.red)
+                    Label(
+                        pair.isSameRestaurant ? "Same restaurant" : "Similar menus",
+                        systemImage: pair.isSameRestaurant ? "checkmark.circle.fill" : "arrow.left.arrow.right.circle.fill"
+                    )
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(pair.isSameRestaurant ? SyncFlowPalette.success : SyncFlowPalette.rose)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        (pair.isSameRestaurant ? SyncFlowPalette.success : SyncFlowPalette.rose).opacity(0.09),
+                        in: Capsule()
+                    )
                     Spacer()
                     Text("\(pair.score.total)")
-                        .font(.title.bold())
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(SyncFlowPalette.ink)
                     Text("Sync\nScore")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(SyncFlowPalette.muted)
                 }
+
+                Divider().overlay(SyncFlowPalette.rose.opacity(0.08))
+
                 HStack {
-                    restaurantName(pair.hostRestaurant, person: hostName)
-                    Image(systemName: "heart.fill").foregroundStyle(Brand.red)
-                    restaurantName(pair.partnerRestaurant, person: partnerName)
+                    restaurantName(pair.hostRestaurant, person: hostName, host: true)
+                    Image(systemName: "heart.fill")
+                        .font(.title2)
+                        .foregroundStyle(SyncFlowPalette.rose)
+                    restaurantName(pair.partnerRestaurant, person: partnerName, host: false)
                 }
-                Text(pair.theme)
-                    .font(.headline)
-                HStack {
-                    Label("\(pair.score.menuSimilarity)% menu match", systemImage: "checkmark.circle")
-                    Spacer()
-                    Text("Δ \(pair.score.predictedDifference) min")
+
+                Divider()
+                    .overlay(SyncFlowPalette.rose.opacity(0.13))
+                    .dashed()
+
+                HStack(spacing: 14) {
+                    Image("MenuDishPaneer")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 90, height: 90)
+                        .background(SyncFlowPalette.blush.opacity(0.4), in: RoundedRectangle(cornerRadius: 18))
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(pair.theme)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundStyle(SyncFlowPalette.ink)
+                            .lineLimit(2)
+
+                        Label("\(pair.score.menuSimilarity)% menu match", systemImage: "checkmark.circle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(SyncFlowPalette.success)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
+                            .background(SyncFlowPalette.success.opacity(0.08), in: Capsule())
+
+                        HStack {
+                            Label("Both locations", systemImage: "mappin")
+                            Spacer()
+                            Label("\(pair.score.predictedDifference) min", systemImage: "clock")
+                        }
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(SyncFlowPalette.muted)
+                    }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-            .softCard()
-            .overlay(RoundedRectangle(cornerRadius: 22).stroke(selected ? Brand.red : .clear, lineWidth: 2))
+            .syncFlowCard(cornerRadius: 26, padding: 18)
+            .overlay {
+                RoundedRectangle(cornerRadius: 26)
+                    .stroke(selected ? SyncFlowPalette.rose.opacity(0.5) : .clear, lineWidth: 1.5)
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(pair.theme), Sync Score \(pair.score.total)")
     }
 
-    private func restaurantName(_ restaurant: Restaurant, person: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(person).font(.caption2).foregroundStyle(.secondary)
-            Text(restaurant.name).font(.subheadline.bold()).lineLimit(1)
-            Text(restaurant.city).font(.caption).foregroundStyle(.secondary)
+    private func restaurantName(_ restaurant: Restaurant, person: String, host: Bool) -> some View {
+        HStack(spacing: 9) {
+            if host {
+                participantAvatar(host: true)
+            }
+            VStack(alignment: host ? .leading : .trailing, spacing: 3) {
+                Text(person)
+                    .font(.system(size: 11))
+                    .foregroundStyle(SyncFlowPalette.muted)
+                Text(restaurant.name)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(SyncFlowPalette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(restaurant.city)
+                    .font(.system(size: 11))
+                    .foregroundStyle(SyncFlowPalette.muted)
+            }
+            if !host {
+                participantAvatar(host: false)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: host ? .leading : .trailing)
+    }
+
+    private func participantAvatar(host: Bool) -> some View {
+        Text(host ? "AP" : "AK")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 42, height: 42)
+            .background(
+                host ? SyncFlowPalette.rose : Color.orange.opacity(0.72),
+                in: Circle()
+            )
+    }
+}
+
+private extension View {
+    func dashed() -> some View {
+        overlay {
+            GeometryReader { proxy in
+                Path { path in
+                    path.move(to: .zero)
+                    path.addLine(to: CGPoint(x: proxy.size.width, y: 0))
+                }
+                .stroke(
+                    SyncFlowPalette.rose.opacity(0.16),
+                    style: StrokeStyle(lineWidth: 1, dash: [3, 4])
+                )
+            }
+        }
     }
 }

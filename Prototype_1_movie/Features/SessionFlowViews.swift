@@ -108,26 +108,6 @@ struct SyncTableEntryView: View {
                 heroPersonLabel(name: "Arjun", city: "Bangalore")
                     .offset(x: width * 0.78, y: 202)
 
-                HStack(spacing: 12) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(SyncHomePalette.ink)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Meals arrive together")
-                            .font(.system(size: 11, weight: .medium))
-                        Text("in 27 min")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(SyncHomePalette.coral)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .frame(height: 54)
-                .background(.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 17, style: .continuous)
-                        .stroke(SyncHomePalette.coral.opacity(0.22), lineWidth: 1)
-                }
-                .offset(x: width * 0.45, y: 253)
 
                 Image(systemName: "heart.fill")
                     .font(.system(size: 11))
@@ -510,31 +490,81 @@ struct OrderingModeView: View {
     let store: SyncTableStore
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                SectionHeader(
-                    eyebrow: "How should tonight work?",
-                    title: "Choose an ordering mode",
-                    subtitle: "This choice is shared. You can still browse and move between screens independently."
-                )
+        ZStack {
+            SyncFlowBackground()
 
-                ForEach(OrderingMode.allCases) { mode in
-                    Button {
-                        store.selectOrderingMode(mode)
-                    } label: {
-                        OrderingModeCard(mode: mode, selected: store.table.orderingMode == mode)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    orderingHero
+
+                    ForEach(OrderingMode.allCases) { mode in
+                        Button {
+                            store.selectOrderingMode(mode)
+                        } label: {
+                            OrderingModeCard(mode: mode, selected: store.table.orderingMode == mode)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                }
 
-                Button("Find restaurants", systemImage: "fork.knife") {
-                    store.go(.matching)
+                    Button {
+                        store.go(.matching)
+                    } label: {
+                        Label("Find restaurants", systemImage: "fork.knife")
+                    }
+                    .buttonStyle(SyncFlowPrimaryButtonStyle())
+                    .disabled(store.table.orderingMode == nil)
+                    .opacity(store.table.orderingMode == nil ? 0.58 : 1)
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(store.table.orderingMode == nil)
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 32)
             }
-            .padding(20)
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    private var orderingHero: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("HOW SHOULD TONIGHT WORK?")
+                        .font(.system(size: 11.5, weight: .bold))
+                        .tracking(1.3)
+                        .foregroundStyle(SyncFlowPalette.rose)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Choose an")
+                            .foregroundStyle(SyncFlowPalette.ink)
+                        HStack(spacing: 6) {
+                            Text("ordering")
+                                .foregroundStyle(SyncFlowPalette.rose)
+                            Text("mode")
+                                .foregroundStyle(SyncFlowPalette.ink)
+                        }
+                    }
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .tracking(-0.8)
+
+                    Text("This choice is shared. You can still browse and\nmove between screens independently.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SyncFlowPalette.muted)
+                        .lineSpacing(5)
+                        .padding(.top, 5)
+                }
+                .frame(width: width * 0.76, alignment: .leading)
+                .zIndex(2)
+
+                Image("OrderingModeHero")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: width * 0.61)
+                    .offset(x: width * 0.48, y: 23)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(height: 250)
     }
 }
 
@@ -543,28 +573,65 @@ private struct OrderingModeCard: View {
     let selected: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 15) {
-            Image(systemName: mode.symbol)
-                .font(.title2)
-                .foregroundStyle(selected ? .white : Brand.red)
-                .frame(width: 48, height: 48)
-                .background(selected ? Brand.red : Brand.red.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+        HStack(spacing: 16) {
+            modeArtwork
+                .frame(width: 72, height: 72)
+                .background(SyncFlowPalette.blush.opacity(0.55), in: RoundedRectangle(cornerRadius: 18))
                 .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 6) {
-                Text(mode.title).font(.headline)
-                Text(mode.subtitle).font(.subheadline).foregroundStyle(.secondary)
+                Text(mode.title)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(SyncFlowPalette.ink)
+                Text(mode.subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(SyncFlowPalette.muted)
+                    .lineSpacing(3)
             }
+
             Spacer()
+
             Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(selected ? Brand.green : .secondary)
+                .font(.system(size: 21))
+                .foregroundStyle(selected ? SyncFlowPalette.success : SyncFlowPalette.muted.opacity(0.65))
                 .accessibilityHidden(true)
         }
-        .softCard()
+        .syncFlowCard(cornerRadius: 24, padding: 16)
         .overlay {
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(selected ? Brand.red : .clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(selected ? SyncFlowPalette.rose.opacity(0.55) : .clear, lineWidth: 1.5)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    @ViewBuilder private var modeArtwork: some View {
+        switch mode {
+        case .blend:
+            Image("MenuDishPaneer")
+                .resizable()
+                .scaledToFit()
+                .padding(6)
+        case .sameChain:
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: "storefront.fill")
+                    .font(.system(size: 35))
+                    .foregroundStyle(SyncFlowPalette.rose)
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(SyncFlowPalette.coral)
+                    .background(.white, in: Circle())
+            }
+        case .differentRestaurants:
+            ZStack {
+                Image(systemName: "scooter")
+                    .font(.system(size: 37))
+                    .foregroundStyle(SyncFlowPalette.rose)
+                Image(systemName: "takeoutbag.and.cup.and.straw.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.orange)
+                    .offset(x: 22, y: -21)
+            }
+        }
     }
 }
