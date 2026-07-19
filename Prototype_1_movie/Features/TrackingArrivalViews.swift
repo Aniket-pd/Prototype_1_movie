@@ -292,7 +292,7 @@ private struct TrackingArrivalCard: View {
                 .foregroundStyle(SyncFlowPalette.rose)
             HStack(alignment: .firstTextBaseline) {
                 Text("8:06–8:12 PM")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(SyncFlowPalette.ink)
                 Spacer()
                 Text("Δ \(predictedDifference) min")
