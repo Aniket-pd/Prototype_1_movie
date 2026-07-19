@@ -6,8 +6,10 @@ PROJECT="$ROOT_DIR/Prototype_1_movie.xcodeproj"
 DERIVED_DATA="$ROOT_DIR/.build"
 APP="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Prototype_1_movie.app"
 BUNDLE_ID="aniket.Prototype-1-movie"
-HOST_DEVICE="${SYNC_TABLE_HOST_DEVICE:-17F91CC9-BF29-4DDB-9E4C-7C501A880A6D}"
-PARTNER_DEVICE="${SYNC_TABLE_PARTNER_DEVICE:-98EFCD44-1B5F-4AEC-AA09-FF77CA2FCEE0}"
+# Use matching devices so both sides of the demo have the same viewport and
+# typography scale. The partner device is a second iPhone 17 simulator.
+HOST_DEVICE="${SYNC_TABLE_HOST_DEVICE:-348F53B0-4287-4443-B4B6-38F814731D91}"
+PARTNER_DEVICE="${SYNC_TABLE_PARTNER_DEVICE:-56EC6749-7A87-401F-AB7D-FAFA94F7F98E}"
 BACKEND_URL="${SYNC_TABLE_BACKEND_URL:-http://localhost:8787}"
 SERVER_SCRIPT="$ROOT_DIR/script/demo_server.sh"
 SERVER_PID_FILE="$ROOT_DIR/.build/demo-server.pid"
