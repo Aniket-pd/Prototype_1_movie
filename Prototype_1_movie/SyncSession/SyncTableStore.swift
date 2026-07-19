@@ -74,6 +74,7 @@ final class SyncTableStore {
     var remoteCart: Cart { role == .host ? table.partnerCart : table.hostCart }
     var localReady: Bool { role == .host ? table.hostReady : table.partnerReady }
     var remoteReady: Bool { role == .host ? table.partnerReady : table.hostReady }
+    var selectionWasMadeByRemoteParticipant: Bool { table.selectedBy != nil && table.selectedBy != role }
     var localRestaurant: Restaurant? {
         role == .host ? table.selectedPair?.hostRestaurant : table.selectedPair?.partnerRestaurant
     }
@@ -96,7 +97,6 @@ final class SyncTableStore {
     }
     var paymentSummary: String {
         switch table.paymentDecision.arrangement {
-        case .splitEqually: return "Split equally"
         case .ownOrder: return "Each person paid for their own order"
         case .onePays:
             let payer = table.paymentDecision.payerID == table.host.id ? table.host.name : table.partner.name
@@ -293,9 +293,10 @@ final class SyncTableStore {
 
     func select(_ pair: RestaurantPair) {
         table.selectedPair = pair
+        table.selectedBy = role
         table.hostCart.items = []
         table.partnerCart.items = []
-        send(.selectPair(pair))
+        send(.selectPair(pair, selectedBy: role))
     }
 
     func addHostItem(_ item: MenuItem) { addLocalItem(item) }
@@ -666,6 +667,7 @@ final class SyncTableStore {
             host: DemoData.aniket,
             partner: DemoData.aisha,
             selectedPair: nil,
+            selectedBy: nil,
             hostCart: .init(id: UUID(), ownerID: DemoData.aniket.id, items: []),
             partnerCart: .init(id: UUID(), ownerID: DemoData.aisha.id, items: []),
             hostReady: false,

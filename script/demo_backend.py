@@ -65,6 +65,7 @@ def mutate(table_id, action):
             state["partnerJoined"] = state["table"].get("partnerConnected", False)
         elif kind == "selectPair":
             state["table"]["selectedPair"] = action["pair"]
+            state["table"]["selectedBy"] = action["selectedBy"]
             state["table"]["hostCart"]["items"] = []
             state["table"]["partnerCart"]["items"] = []
         elif kind == "orderingMode":

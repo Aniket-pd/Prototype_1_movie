@@ -274,7 +274,6 @@ private struct PaymentChoiceRow: View {
 
     private var paymentSymbol: String {
         switch arrangement {
-        case .splitEqually: "equal.circle.fill"
         case .ownOrder: "person.2.fill"
         case .onePays: "person.crop.circle.badge.checkmark"
         }

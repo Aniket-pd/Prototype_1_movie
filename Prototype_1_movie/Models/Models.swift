@@ -6,14 +6,12 @@ enum AppStage: Int, CaseIterable, Codable, Hashable {
 }
 
 enum PaymentArrangement: String, CaseIterable, Codable, Identifiable {
-    case splitEqually
     case ownOrder
     case onePays
 
     var id: Self { self }
     var title: String {
         switch self {
-        case .splitEqually: "Split equally"
         case .ownOrder: "Pay for your own order"
         case .onePays: "One person pays for everything"
         }
@@ -207,6 +205,9 @@ struct SyncTable: Identifiable, Codable {
     let host: Participant
     let partner: Participant
     var selectedPair: RestaurantPair?
+    /// The participant who most recently selected the current restaurant pair.
+    /// This lets the other participant distinguish a remote selection visually.
+    var selectedBy: DemoUserRole?
     var hostCart: Cart
     var partnerCart: Cart
     var hostReady: Bool
@@ -216,6 +217,66 @@ struct SyncTable: Identifiable, Codable {
     var partnerConnected: Bool = false
     var paymentDecision: SharedPaymentDecision = .init()
     var memory: SyncMemory?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, createdAt, host, partner, selectedPair, selectedBy, hostCart, partnerCart
+        case hostReady, partnerReady, orders, hostConnected, partnerConnected, paymentDecision, memory
+    }
+
+    init(
+        id: String,
+        createdAt: Date,
+        host: Participant,
+        partner: Participant,
+        selectedPair: RestaurantPair?,
+        selectedBy: DemoUserRole? = nil,
+        hostCart: Cart,
+        partnerCart: Cart,
+        hostReady: Bool,
+        partnerReady: Bool,
+        orders: [LinkedOrder],
+        hostConnected: Bool = false,
+        partnerConnected: Bool = false,
+        paymentDecision: SharedPaymentDecision = .init(),
+        memory: SyncMemory? = nil
+    ) {
+        self.id = id
+        self.createdAt = createdAt
+        self.host = host
+        self.partner = partner
+        self.selectedPair = selectedPair
+        self.selectedBy = selectedBy
+        self.hostCart = hostCart
+        self.partnerCart = partnerCart
+        self.hostReady = hostReady
+        self.partnerReady = partnerReady
+        self.orders = orders
+        self.hostConnected = hostConnected
+        self.partnerConnected = partnerConnected
+        self.paymentDecision = paymentDecision
+        self.memory = memory
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(String.self, forKey: .id),
+            createdAt: try container.decode(Date.self, forKey: .createdAt),
+            host: try container.decode(Participant.self, forKey: .host),
+            partner: try container.decode(Participant.self, forKey: .partner),
+            selectedPair: try container.decodeIfPresent(RestaurantPair.self, forKey: .selectedPair),
+            selectedBy: try container.decodeIfPresent(DemoUserRole.self, forKey: .selectedBy),
+            hostCart: try container.decode(Cart.self, forKey: .hostCart),
+            partnerCart: try container.decode(Cart.self, forKey: .partnerCart),
+            hostReady: try container.decode(Bool.self, forKey: .hostReady),
+            partnerReady: try container.decode(Bool.self, forKey: .partnerReady),
+            orders: try container.decode([LinkedOrder].self, forKey: .orders),
+            hostConnected: try container.decodeIfPresent(Bool.self, forKey: .hostConnected) ?? false,
+            partnerConnected: try container.decodeIfPresent(Bool.self, forKey: .partnerConnected) ?? false,
+            paymentDecision: try container.decodeIfPresent(SharedPaymentDecision.self, forKey: .paymentDecision) ?? .init(),
+            memory: try container.decodeIfPresent(SyncMemory.self, forKey: .memory)
+        )
+    }
 }
 
 struct SyncMemory: Identifiable, Hashable, Codable {

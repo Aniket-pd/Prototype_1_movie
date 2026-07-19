@@ -77,6 +77,25 @@ struct InviteView: View {
                     .transition(.opacity)
             }
 
+            // The invite has served its purpose once both people are connected.
+            // Removing this whole section also collapses the card instead of leaving a
+            // redundant code, expiry timer, or sharing action on screen.
+            if !store.bothConnected {
+                inviteDetails
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        )
+                    )
+            }
+        }
+        .syncFlowCard(cornerRadius: 26, padding: 18)
+        .syncMotion(value: store.bothConnected)
+    }
+
+    private var inviteDetails: some View {
+        VStack(spacing: 22) {
             Divider().overlay(SyncFlowPalette.rose.opacity(0.09))
 
             VStack(spacing: 7) {
@@ -96,7 +115,6 @@ struct InviteView: View {
                     .background(SyncFlowPalette.blush.opacity(0.74), in: RoundedRectangle(cornerRadius: 18))
             }
         }
-        .syncFlowCard(cornerRadius: 26, padding: 18)
     }
 
     /// A table is only presented as populated after both ends have confirmed the invite.
@@ -276,6 +294,7 @@ struct MatchingView: View {
                             MatchCard(
                                 pair: pair,
                                 selected: store.table.selectedPair?.id == pair.id,
+                                selectedByRemoteParticipant: store.selectionWasMadeByRemoteParticipant,
                                 hostName: store.table.host.name,
                                 partnerName: store.table.partner.name
                             ) {
@@ -340,12 +359,6 @@ struct MatchingView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
 
-                Text("Browse independently. Shared choices and carts update without moving the other person’s screen.")
-                    .font(.system(size: 13.5))
-                    .foregroundStyle(SyncFlowPalette.muted)
-                    .lineSpacing(5)
-                    .padding(.top, 5)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
@@ -362,6 +375,7 @@ struct MatchingView: View {
 struct MatchCard: View {
     let pair: RestaurantPair
     let selected: Bool
+    let selectedByRemoteParticipant: Bool
     let hostName: String
     let partnerName: String
     let action: () -> Void
@@ -438,7 +452,12 @@ struct MatchCard: View {
             .syncFlowCard(cornerRadius: 26, padding: 18)
             .overlay {
                 RoundedRectangle(cornerRadius: 26)
-                    .stroke(selected ? SyncFlowPalette.rose.opacity(0.5) : .clear, lineWidth: 1.5)
+                    .stroke(
+                        selected
+                            ? (selectedByRemoteParticipant ? Color.gray : SyncFlowPalette.rose.opacity(0.5))
+                            : .clear,
+                        lineWidth: 1.5
+                    )
             }
         }
         .buttonStyle(.plain)

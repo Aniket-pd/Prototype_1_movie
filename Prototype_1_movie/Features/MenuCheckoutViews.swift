@@ -50,17 +50,33 @@ struct SharedMenuView: View {
             Button {
                 store.go(.carts)
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "basket.fill")
-                    Text("View both carts")
+                HStack(spacing: 10) {
+                    Label("View both carts", systemImage: "basket.fill")
+                        .font(.body.weight(.semibold))
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+
                     Spacer()
-                    Text("\(store.localCart.itemCount) items • \(store.localCart.total.rupees)")
-                        .font(.system(size: 13, weight: .semibold))
-                    Image(systemName: "arrow.right")
+
+                    HStack(spacing: 8) {
+                        Text("\(store.localCart.itemCount) items • \(store.localCart.total.rupees)")
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                            .lineLimit(1)
+
+                        Image(systemName: "chevron.right")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
-                .padding(.horizontal, 20)
+                .padding(.vertical, 2)
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(SyncFlowPrimaryButtonStyle())
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.roundedRectangle)
+            .controlSize(.large)
+            .tint(SyncFlowPalette.rose)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
@@ -411,46 +427,37 @@ struct CheckoutView: View {
     let store: SyncTableStore
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                SectionHeader(eyebrow: "Linked checkout", title: "Two payments. One shared window.", subtitle: "We validate both menus, authorize each payment separately, then submit the linked orders together.")
+        List {
+            Section {
+                paymentRow(store.table.host, total: store.table.hostCart.total, method: "Visa •••• 4821")
+                paymentRow(store.table.partner, total: store.table.partnerCart.total, method: "UPI • aisha@okhdfc")
+            } header: {
+                Text("Payments")
+            } footer: {
+                Text("Each payment is authorized separately.")
+            }
 
-                VStack(spacing: 14) {
-                    paymentRow(store.table.host, total: store.table.hostCart.total, method: "Visa •••• 4821")
-                    Divider()
-                    paymentRow(store.table.partner, total: store.table.partnerCart.total, method: "UPI • aisha@okhdfc")
-                }
-                .softCard()
+            Section("Arrival") {
+                LabeledContent("Shared arrival", value: arrivalWindow)
+                    .font(.body.weight(.semibold))
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Shared target", systemImage: "clock.badge.checkmark.fill")
-                        .font(.headline).foregroundStyle(Brand.red)
-                    Text("Expected within \(store.predictedDifference) \(store.predictedDifference == 1 ? "minute" : "minutes") of each other")
-                        .font(.title3.bold())
-                    Text("We coordinate kitchen start timing and courier assignment. Live estimates remain visible and may differ.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .softCard()
+                Label("We’ll keep the two deliveries as close together as possible.", systemImage: "clock")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Confirmed payment plan", systemImage: "checkmark.shield.fill")
-                        .font(.headline)
-                        .foregroundStyle(Brand.green)
-                    Text(store.paymentSummary).font(.title3.bold())
-                    Text("Final total \(store.combinedFinalAmount.rupees)")
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Label("Aniket confirmed", systemImage: "checkmark.circle.fill")
-                        Spacer()
-                        Label("\(store.table.partner.name) confirmed", systemImage: "checkmark.circle.fill")
-                    }
-                    .font(.caption.bold())
-                    .foregroundStyle(Brand.green)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .softCard()
-
+            Section {
+                Label(store.paymentSummary, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .navigationTitle("Review & place order")
+        .navigationBarTitleDisplayMode(.large)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
                 Button {
                     if store.table.orders.isEmpty {
                         Task { await store.authorizeAndSubmit() }
@@ -459,38 +466,57 @@ struct CheckoutView: View {
                     }
                 } label: {
                     if store.isSubmitting {
-                        HStack { ProgressView().tint(.white); Text("Authorizing both payments…") }
+                        HStack { ProgressView().tint(.white); Text("Authorizing payments…") }
                     } else if !store.table.orders.isEmpty {
-                        Label("View live linked orders", systemImage: "location.fill")
+                        Label("Track orders", systemImage: "location.fill")
                     } else {
-                        Label("Authorize my payment & link orders", systemImage: "lock.shield.fill")
+                        Label("Place linked orders", systemImage: "lock.fill")
                     }
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+                .controlSize(.large)
+                .tint(Brand.red)
                 .disabled(store.isSubmitting)
 
-                Label("Mock payments • no charge will be made", systemImage: "checkmark.shield")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("Mock payments — no charge will be made")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            .background(.bar)
         }
         .syncMotion(value: store.isSubmitting)
         .syncMotion(value: store.table.orders)
     }
 
+    private var arrivalWindow: String {
+        "Within \(store.predictedDifference) \(store.predictedDifference == 1 ? "minute" : "minutes")"
+    }
+
     private func paymentRow(_ participant: Participant, total: Int, method: String) -> some View {
-        HStack {
+        HStack(spacing: 12) {
             AvatarView(participant: participant)
             VStack(alignment: .leading, spacing: 3) {
-                Text(participant.name).font(.headline)
-                Text(method).font(.caption).foregroundStyle(.secondary)
-                Text(participant.address.line).font(.caption).foregroundStyle(.secondary)
+                Text(participant.name)
+                    .font(.body.weight(.semibold))
+                Text(method)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
-            VStack(alignment: .trailing) {
-                Text(total.rupees).font(.headline)
-                Label("Ready", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(Brand.green)
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(total.rupees)
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+                Label("Ready", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Brand.green)
             }
         }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }

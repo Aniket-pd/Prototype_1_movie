@@ -90,7 +90,7 @@ struct SyncTableTests {
             dishes: "Ramen + Noodles",
             theme: "Blend",
             restaurantInformation: "Noodle Theory • Miso Social",
-            paymentSummary: "Split equally"
+            paymentSummary: "Each person paid for their own order"
         )
         let data = try JSONEncoder().encode(table)
         let restored = try JSONDecoder().decode(SyncTable.self, from: data)
@@ -121,6 +121,29 @@ struct SyncTableTests {
         #expect(partner.bothConnected)
     }
 
+    @Test("A remote restaurant selection is identifiable by the receiving participant")
+    @MainActor
+    func remoteRestaurantSelection() async {
+        let backend = InMemoryDemoBackend()
+        let host = SyncTableStore(backend: backend, role: .host)
+        let partner = SyncTableStore(backend: backend, role: .partner)
+
+        await host.connectToDemoBackend()
+        await host.createTable()
+        await partner.connectToDemoBackend()
+        await partner.joinTable(code: host.inviteCode)
+        await host.findMatches()
+        try? await Task.sleep(for: .milliseconds(800))
+
+        let selected = try! #require(host.matches.first)
+        host.select(selected)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(partner.table.selectedPair?.id == selected.id)
+        #expect(partner.selectionWasMadeByRemoteParticipant)
+        #expect(!host.selectionWasMadeByRemoteParticipant)
+    }
+
     @Test("On-device demo supports the complete shared decision flow")
     @MainActor
     func onDeviceDemoFlow() async {
@@ -146,7 +169,7 @@ struct SyncTableTests {
         #expect(store.table.hostReady)
         #expect(store.table.partnerReady)
 
-        store.selectPayment(.splitEqually)
+        store.selectPayment(.ownOrder)
         store.confirmPaymentDecision()
         #expect(store.bothPaymentConfirmed)
 
@@ -252,8 +275,11 @@ private final class InMemoryDemoBackend: DemoBackendService, @unchecked Sendable
                 if role == .host { $0.table.hostReady = value }
                 else { $0.table.partnerReady = value }
             }
-        case .selectPair(let pair):
-            update(tableID) { $0.table.selectedPair = pair }
+        case .selectPair(let pair, let selectedBy):
+            update(tableID) {
+                $0.table.selectedPair = pair
+                $0.table.selectedBy = selectedBy
+            }
         case .setOrders(let orders):
             update(tableID) { $0.table.orders = orders }
         case .event(let event):

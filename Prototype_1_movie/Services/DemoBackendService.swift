@@ -47,7 +47,7 @@ enum DemoBackendAction: Encodable {
     case bootstrap(DemoBackendSnapshot)
     case setStage(AppStage)
     case join(DemoUserRole)
-    case selectPair(RestaurantPair)
+    case selectPair(RestaurantPair, selectedBy: DemoUserRole)
     case cart(role: DemoUserRole, item: MenuItem, delta: Int)
     case ready(role: DemoUserRole, value: Bool)
     case payment(SharedPaymentDecision)
@@ -60,7 +60,7 @@ enum DemoBackendAction: Encodable {
     case reset(DemoBackendSnapshot)
 
     private enum CodingKeys: String, CodingKey {
-        case type, snapshot, stage, pair, role, mode, item, delta, value, payment, participantID, orders, event, memory, countdown
+        case type, snapshot, stage, pair, role, selectedBy, mode, item, delta, value, payment, participantID, orders, event, memory, countdown
     }
 
     func encode(to encoder: Encoder) throws {
@@ -75,9 +75,10 @@ enum DemoBackendAction: Encodable {
         case .join(let role):
             try container.encode("join", forKey: .type)
             try container.encode(role, forKey: .role)
-        case .selectPair(let pair):
+        case .selectPair(let pair, let selectedBy):
             try container.encode("selectPair", forKey: .type)
             try container.encode(pair, forKey: .pair)
+            try container.encode(selectedBy, forKey: .selectedBy)
         case .cart(let role, let item, let delta):
             try container.encode("cart", forKey: .type)
             try container.encode(role, forKey: .role)
