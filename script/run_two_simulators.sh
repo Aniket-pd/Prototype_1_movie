@@ -9,11 +9,23 @@ BUNDLE_ID="aniket.Prototype-1-movie"
 HOST_DEVICE="${SYNC_TABLE_HOST_DEVICE:-17F91CC9-BF29-4DDB-9E4C-7C501A880A6D}"
 PARTNER_DEVICE="${SYNC_TABLE_PARTNER_DEVICE:-98EFCD44-1B5F-4AEC-AA09-FF77CA2FCEE0}"
 BACKEND_URL="${SYNC_TABLE_BACKEND_URL:-http://localhost:8787}"
+SERVER_SCRIPT="$ROOT_DIR/script/demo_server.sh"
+SERVER_PID_FILE="$ROOT_DIR/.build/demo-server.pid"
 
 mkdir -p "$DERIVED_DATA"
+if [[ "$BACKEND_URL" == "http://localhost:8787" && -f "$SERVER_PID_FILE" ]]; then
+  SERVER_PID="$(<"$SERVER_PID_FILE")"
+  if kill -0 "$SERVER_PID" 2>/dev/null && [[ "$ROOT_DIR/script/demo_backend.py" -nt "$SERVER_PID_FILE" ]]; then
+    kill "$SERVER_PID"
+    for _ in {1..30}; do
+      kill -0 "$SERVER_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+fi
 if ! curl --silent --fail "$BACKEND_URL/health" >/dev/null; then
-  nohup "$ROOT_DIR/script/demo_server.sh" >"$ROOT_DIR/.build/demo-server.log" 2>&1 </dev/null &
-  echo "$!" >"$ROOT_DIR/.build/demo-server.pid"
+  nohup "$SERVER_SCRIPT" >"$ROOT_DIR/.build/demo-server.log" 2>&1 </dev/null &
+  echo "$!" >"$SERVER_PID_FILE"
   for _ in {1..30}; do
     curl --silent --fail "$BACKEND_URL/health" >/dev/null && break
     sleep 0.1

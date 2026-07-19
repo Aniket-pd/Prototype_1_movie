@@ -427,35 +427,30 @@ struct CheckoutView: View {
     let store: SyncTableStore
 
     var body: some View {
-        List {
-            Section {
-                paymentRow(store.table.host, total: store.table.hostCart.total, method: "Visa •••• 4821")
-                paymentRow(store.table.partner, total: store.table.partnerCart.total, method: "UPI • aisha@okhdfc")
-            } header: {
-                Text("Payments")
-            } footer: {
-                Text("Each payment is authorized separately.")
-            }
+        ZStack {
+            SyncFlowBackground()
 
-            Section("Arrival") {
-                LabeledContent("Shared arrival", value: arrivalWindow)
-                    .font(.body.weight(.semibold))
+            ScrollView {
+                VStack(alignment: .leading, spacing: SyncFlowLayout.sectionSpacing) {
+                    CheckoutFlowHeader()
+                    CheckoutPaymentsCard(store: store)
+                    CheckoutArrivalCard(arrivalWindow: arrivalWindow)
 
-                Label("We’ll keep the two deliveries as close together as possible.", systemImage: "clock")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Label(store.paymentSummary, systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(SyncFlowPalette.success)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(SyncFlowPalette.success.opacity(0.09), in: RoundedRectangle(cornerRadius: 16))
+                        .accessibilityElement(children: .combine)
+                }
+                .padding(.horizontal, SyncFlowLayout.screenPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 100)
             }
-
-            Section {
-                Label(store.paymentSummary, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
+            .scrollIndicators(.hidden)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .navigationTitle("Review & place order")
-        .navigationBarTitleDisplayMode(.large)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 Button {
@@ -466,28 +461,26 @@ struct CheckoutView: View {
                     }
                 } label: {
                     if store.isSubmitting {
-                        HStack { ProgressView().tint(.white); Text("Authorizing payments…") }
+                        Label("Authorizing payments…", systemImage: "lock.shield.fill")
                     } else if !store.table.orders.isEmpty {
                         Label("Track orders", systemImage: "location.fill")
                     } else {
                         Label("Place linked orders", systemImage: "lock.fill")
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.roundedRectangle)
-                .controlSize(.large)
-                .tint(Brand.red)
+                .buttonStyle(SyncFlowPrimaryButtonStyle())
                 .disabled(store.isSubmitting)
 
                 Text("Mock payments — no charge will be made")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(SyncFlowPalette.muted)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, SyncFlowLayout.screenPadding)
             .padding(.top, 12)
             .padding(.bottom, 8)
-            .background(.bar)
+            .background(.ultraThinMaterial)
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
         .syncMotion(value: store.isSubmitting)
         .syncMotion(value: store.table.orders)
     }
@@ -496,27 +489,120 @@ struct CheckoutView: View {
         "Within \(store.predictedDifference) \(store.predictedDifference == 1 ? "minute" : "minutes")"
     }
 
+}
+
+private struct CheckoutFlowHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("READY TO PLACE")
+                .font(.system(size: 11.5, weight: .bold))
+                .tracking(1.2)
+                .foregroundStyle(SyncFlowPalette.rose)
+            Text("Review your linked orders")
+                .font(.system(size: 31, weight: .bold, design: .rounded))
+                .tracking(-0.8)
+                .foregroundStyle(SyncFlowPalette.ink)
+            Text("Two payments, timed for one shared arrival.")
+                .font(.system(size: 14))
+                .foregroundStyle(SyncFlowPalette.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CheckoutPaymentsCard: View {
+    let store: SyncTableStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("PAYMENTS")
+                .font(.system(size: 11.5, weight: .bold))
+                .tracking(1.1)
+                .foregroundStyle(SyncFlowPalette.rose)
+            paymentRow(store.table.host, total: store.hostFinalAmount, method: "Visa •••• 4821")
+            Divider().overlay(SyncFlowPalette.rose.opacity(0.1))
+            paymentRow(store.table.partner, total: store.partnerFinalAmount, method: "UPI • aisha@okhdfc")
+            Text("Each payment is authorized separately.")
+                .font(.system(size: 13))
+                .foregroundStyle(SyncFlowPalette.muted)
+                .padding(.top, 2)
+        }
+        .syncFlowCard(cornerRadius: 26, padding: 18)
+    }
+
     private func paymentRow(_ participant: Participant, total: Int, method: String) -> some View {
         HStack(spacing: 12) {
-            AvatarView(participant: participant)
+            CheckoutAvatar(participant: participant)
             VStack(alignment: .leading, spacing: 3) {
                 Text(participant.name)
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(SyncFlowPalette.ink)
                 Text(method)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(SyncFlowPalette.muted)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
                 Text(total.rupees)
-                    .font(.body.weight(.semibold))
-                    .monospacedDigit()
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(SyncFlowPalette.ink)
                 Label("Ready", systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(Brand.green)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(SyncFlowPalette.success)
             }
         }
-        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct CheckoutArrivalCard: View {
+    let arrivalWindow: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SHARED ARRIVAL")
+                        .font(.system(size: 11.5, weight: .bold))
+                        .tracking(1.1)
+                        .foregroundStyle(SyncFlowPalette.rose)
+                    Text(arrivalWindow)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(SyncFlowPalette.ink)
+                }
+                Spacer()
+                Image(systemName: "clock.badge.checkmark")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(SyncFlowPalette.success)
+                    .accessibilityHidden(true)
+            }
+            Text("We’ll keep both deliveries as close together as possible.")
+                .font(.system(size: 13.5))
+                .foregroundStyle(SyncFlowPalette.muted)
+        }
+        .syncFlowCard(cornerRadius: 24, padding: 18)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct CheckoutAvatar: View {
+    let participant: Participant
+
+    var body: some View {
+        Text(participant.initials)
+            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .frame(width: 48, height: 48)
+            .background(
+                LinearGradient(
+                    colors: participant.isHost
+                        ? [SyncFlowPalette.coral, SyncFlowPalette.rose]
+                        : [Color.orange.opacity(0.75), Color(red: 1, green: 0.66, blue: 0.48)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: Circle()
+            )
+            .accessibilityHidden(true)
     }
 }
